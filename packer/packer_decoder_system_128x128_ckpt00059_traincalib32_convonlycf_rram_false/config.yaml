@@ -1,0 +1,549 @@
+name: packer_decoder_system_128x128_ckpt00059_traincalib32_convonlycf_rram_false
+rram_only: false
+sub_models:
+- name: completionformer_test.decoder_tiny_dec6_resize_conv_basicblock_nocbam_4x4_to_8x8_ckpt
+  ctc_size: 36
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 22
+    params_ch: 36
+    params_wei: 1296
+  offsets:
+    instructions: 0
+    params_ch: 0
+    params_wei: 0
+  inputs:
+  - address: 0
+    size: 12288
+    layout: NCHW
+    dims:
+    - 1
+    - 192
+    - 4
+    - 4
+    ifmap_4ch_en: false
+    c_align: 12
+    w_align: 12
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 96
+    size: 12288
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 8
+    - 8
+    c_align: 6
+    w_align: 6
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec5_resize_conv_basicblock_nocbam_8x8_to_16x16_ckpt
+  ctc_size: 24
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 22
+    params_ch: 24
+    params_wei: 720
+  offsets:
+    instructions: 22
+    params_ch: 36
+    params_wei: 1296
+  inputs:
+  - address: 0
+    size: 24576
+    layout: NCHW
+    dims:
+    - 1
+    - 192
+    - 8
+    - 8
+    ifmap_4ch_en: false
+    c_align: 12
+    w_align: 12
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 128
+    size: 16384
+    layout: NCHW
+    dims:
+    - 1
+    - 64
+    - 16
+    - 16
+    c_align: 4
+    w_align: 4
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec4_resize_conv_basicblock_nocbam_16x16_to_32x32_ckpt
+  ctc_size: 18
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 22
+    params_ch: 18
+    params_wei: 351
+  offsets:
+    instructions: 44
+    params_ch: 60
+    params_wei: 2016
+  inputs:
+  - address: 0
+    size: 28672
+    layout: NCHW
+    dims:
+    - 1
+    - 112
+    - 16
+    - 16
+    ifmap_4ch_en: false
+    c_align: 7
+    w_align: 7
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 192
+    size: 49152
+    layout: NCHW
+    dims:
+    - 1
+    - 48
+    - 32
+    - 32
+    c_align: 3
+    w_align: 6
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec3_resize_conv_basicblock_nocbam_32x32_to_64x64_ckpt
+  ctc_size: 12
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 22
+    params_ch: 12
+    params_wei: 162
+  offsets:
+    instructions: 66
+    params_ch: 78
+    params_wei: 2367
+  inputs:
+  - address: 0
+    size: 81920
+    layout: NCHW
+    dims:
+    - 1
+    - 72
+    - 32
+    - 32
+    ifmap_4ch_en: false
+    c_align: 5
+    w_align: 10
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 512
+    size: 131072
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 64
+    - 64
+    c_align: 2
+    w_align: 8
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec2_resize_upconv_in80_chunk0_64x64_to_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 10
+    params_ch: 4
+    params_wei: 90
+  offsets:
+    instructions: 88
+    params_ch: 90
+    params_wei: 2529
+  inputs:
+  - address: 0
+    size: 327680
+    layout: NCHW
+    dims:
+    - 1
+    - 80
+    - 64
+    - 64
+    ifmap_4ch_en: false
+    c_align: 5
+    w_align: 20
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6400
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec2_resize_upconv_in80_chunk1_64x64_to_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 10
+    params_ch: 4
+    params_wei: 90
+  offsets:
+    instructions: 98
+    params_ch: 94
+    params_wei: 2619
+  inputs:
+  - address: 0
+    size: 327680
+    layout: NCHW
+    dims:
+    - 1
+    - 80
+    - 64
+    - 64
+    ifmap_4ch_en: false
+    c_align: 5
+    w_align: 20
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6400
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec2_exact_block_conv0_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 4
+    params_wei: 36
+  offsets:
+    instructions: 108
+    params_ch: 98
+    params_wei: 2709
+  inputs:
+  - address: 0
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 2048
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.decoder_tiny_dec2_exact_block_conv1_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 4
+    params_wei: 36
+  offsets:
+    instructions: 114
+    params_ch: 102
+    params_wei: 2745
+  inputs:
+  - address: 0
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 2048
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_dep_dec1_conv_relu_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 4
+    params_wei: 108
+  offsets:
+    instructions: 120
+    params_ch: 106
+    params_wei: 2781
+  inputs:
+  - address: 0
+    size: 1572864
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 6
+    w_align: 48
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6144
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_dep_dec0_conv_relu_128x128_ckpt
+  ctc_size: 2
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 2
+    params_wei: 54
+  offsets:
+    instructions: 126
+    params_ch: 110
+    params_wei: 2889
+  inputs:
+  - address: 0
+    size: 1572864
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 6
+    w_align: 48
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6144
+    size: 262144
+    layout: NCHW
+    dims:
+    - 1
+    - 1
+    - 128
+    - 128
+    c_align: 1
+    w_align: 8
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_gd_dec1_conv_relu_128x128_ckpt
+  ctc_size: 4
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 4
+    params_wei: 108
+  offsets:
+    instructions: 132
+    params_ch: 112
+    params_wei: 2943
+  inputs:
+  - address: 0
+    size: 1572864
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 6
+    w_align: 48
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6144
+    size: 524288
+    layout: NCHW
+    dims:
+    - 1
+    - 32
+    - 128
+    - 128
+    c_align: 2
+    w_align: 16
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_gd_dec0_conv_128x128_ckpt
+  ctc_size: 2
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 2
+    params_wei: 54
+  offsets:
+    instructions: 138
+    params_ch: 116
+    params_wei: 3051
+  inputs:
+  - address: 0
+    size: 1572864
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 6
+    w_align: 48
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6144
+    size: 262144
+    layout: NCHW
+    dims:
+    - 1
+    - 8
+    - 128
+    - 128
+    c_align: 1
+    w_align: 8
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_cf_dec1_conv_relu_128x128_ckpt
+  ctc_size: 2
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 2
+    params_wei: 54
+  offsets:
+    instructions: 144
+    params_ch: 118
+    params_wei: 3105
+  inputs:
+  - address: 0
+    size: 1572864
+    layout: NCHW
+    dims:
+    - 1
+    - 96
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 6
+    w_align: 48
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 6144
+    size: 262144
+    layout: NCHW
+    dims:
+    - 1
+    - 16
+    - 128
+    - 128
+    c_align: 1
+    w_align: 8
+    bitdepth: 8
+    arch: 0
+- name: completionformer_test.head_tiny_cf_dec0_conv_only_128x128_ckpt
+  ctc_size: 2
+  epu_size: 0
+  spu_size: 0
+  sizes:
+    instructions: 6
+    params_ch: 2
+    params_wei: 45
+  offsets:
+    instructions: 150
+    params_ch: 120
+    params_wei: 3159
+  inputs:
+  - address: 0
+    size: 1310720
+    layout: NCHW
+    dims:
+    - 1
+    - 80
+    - 128
+    - 128
+    ifmap_4ch_en: false
+    c_align: 5
+    w_align: 40
+    bitdepth: 8
+    arch: 0
+  outputs:
+  - address: 5120
+    size: 262144
+    layout: NCHW
+    dims:
+    - 1
+    - 1
+    - 128
+    - 128
+    c_align: 1
+    w_align: 8
+    bitdepth: 8
+    arch: 0
