@@ -49,6 +49,21 @@ outputs/sample0/
 
 The accepted 32-sample reference metrics are stored under `validation/`.
 
+## Board Output Demo
+
+The image below stitches 32 validation samples. Each group shows the reference prediction, the RHBLite board prediction, and the absolute error.
+
+![32-sample board/ref/error demo](validation/nyu_val32_board_ref_error_triplet_contact_sheet.png)
+
+Summary metrics from `validation/val32_metrics.csv`:
+
+- final pred abs mean: `0.022418`
+- final pred p95 mean: `0.096996`
+- pred_init abs mean: `0.062948`
+- confidence abs mean: `0.042193`
+- latency mean: `1552.956 ms`
+- latency mean excluding one observed scheduling outlier: `1488.789 ms`
+
 ## Important Flags
 
 The board run must use:
@@ -65,4 +80,3 @@ The first flag keeps sigmoid on Host. The second flag clears stale `wr_done` bef
 See:
 
 `docs/operator_optimization_rules.md`
-# CompletionFormer_Demo
