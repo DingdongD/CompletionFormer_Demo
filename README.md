@@ -64,6 +64,24 @@ Summary metrics from `validation/val32_metrics.csv`:
 - latency mean: `1552.956 ms`
 - latency mean excluding one observed scheduling outlier: `1488.789 ms`
 
+## Web Viewer
+
+A local board-output viewer is included under `apps/completionformer_board_viewer/`. It can load saved board outputs, trigger `run_board_single_sample.sh`, show depth/error maps, report latency parsed from board logs, and render a point-cloud view.
+
+Run from this portable runtime directory:
+
+```bash
+python apps/completionformer_board_viewer/app.py --host 0.0.0.0 --port 7861
+```
+
+Open:
+
+```text
+http://127.0.0.1:7861
+```
+
+The app keeps RGBD upload and ToF source endpoints reserved for later live input integration.
+
 ## Important Flags
 
 The board run must use:
