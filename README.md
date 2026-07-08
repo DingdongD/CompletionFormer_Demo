@@ -64,6 +64,24 @@ Summary metrics from `validation/val32_metrics.csv`:
 - latency mean: `1552.956 ms`
 - latency mean excluding one observed scheduling outlier: `1488.789 ms`
 
+## GitHub Pages Demo
+
+A static GitHub Pages demo is available under `docs/`. It uses saved RHBLite board outputs and does not require Python, SSH, or board access.
+
+Local preview:
+
+```bash
+python -m http.server 8091 --directory docs
+```
+
+Open:
+
+```text
+http://127.0.0.1:8091
+```
+
+The static demo includes 12 saved board-output samples, depth/error maps, latency metrics, and full `128x128 = 16384` point point-cloud data per sample. To publish it on GitHub, enable GitHub Pages from the repository `docs/` directory on this branch or after merging to `main`.
+
 ## Web Viewer
 
 A local board-output viewer is included under `apps/completionformer_board_viewer/`. It can load saved board outputs, trigger `run_board_single_sample.sh`, show depth/error maps, report latency parsed from board logs, and render a point-cloud view.

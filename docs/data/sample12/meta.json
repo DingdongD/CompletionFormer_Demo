@@ -1,0 +1,48 @@
+{
+  "index": 12,
+  "title": "sample 12",
+  "base": "data/sample12",
+  "images": {
+    "rgb": "rgb.png",
+    "sparse_depth": "sparse_depth.png",
+    "gt": "gt.png",
+    "ref_pred": "ref_pred.png",
+    "board_pred": "board_pred.png",
+    "abs_error": "abs_error.png"
+  },
+  "point_cloud": "point_cloud.json",
+  "metrics": {
+    "abs_mean": 0.014835827983915806,
+    "abs_p95": 0.060905617475509564,
+    "abs_max": 0.38156557083129883,
+    "rmse": 0.031331080943346024,
+    "ref_min": 1.0963727235794067,
+    "ref_max": 5.886234283447266,
+    "board_min": 1.0969178676605225,
+    "board_max": 5.8608832359313965,
+    "board_init_min": 0.8125,
+    "board_init_max": 8.00622844696045,
+    "latency_total_ms": 1516.476,
+    "latency_slowest_op": "dep_dec1_full_rhb",
+    "latency_slowest_ms": 270.642,
+    "latencies_ms": {
+      "dec6_rhb": 3.387,
+      "dec5_rhb": 3.531,
+      "dec4_rhb": 10.315,
+      "dec3_rhb": 18.28,
+      "dec2_resize_upconv_split_sum_host_relu": 134.244,
+      "dec2_exact_block_conv0_rhb": 76.405,
+      "dec2_exact_block_conv1_rhb": 76.742,
+      "host_dec2_exact_residual_relu": 13.866,
+      "dep_dec1_full_rhb": 270.642,
+      "dep_dec0_rhb": 235.704,
+      "gd_dec1_full_rhb": 266.754,
+      "gd_dec0_rhb": 164.295,
+      "cf_dec1_rhb": 136.44,
+      "cf_dec0_rhb": 103.918,
+      "cf_dec0_host_sigmoid": 1.954,
+      "decoder_system_128x128_ckpt_tracked_total": 1516.476
+    }
+  },
+  "source_npz": "outputs/sample12/nyu_val12_ref_vs_board_convonlycf_hostsigmoid.npz"
+}

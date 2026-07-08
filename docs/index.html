@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CompletionFormer RHBLite Board Demo</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <h1>CompletionFormer</h1>
+        <p>RHBLite board demo</p>
+      </div>
+    </div>
+
+    <section class="panel">
+      <label for="sampleSelect">Sample</label>
+      <select id="sampleSelect"></select>
+      <button id="loadBtn" class="primary">Load</button>
+    </section>
+
+    <section class="panel metrics">
+      <label>Metrics</label>
+      <dl id="metrics"></dl>
+    </section>
+
+    <section class="panel">
+      <label>Runtime</label>
+      <div id="runtimeInfo" class="status"></div>
+    </section>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <h2>Board Depth Prediction</h2>
+        <p id="pathLine">Loading manifest</p>
+      </div>
+      <div id="runStatus" class="runStatus">Static demo</div>
+    </header>
+
+    <section class="imageGrid">
+      <figure><img id="rgbImg"><figcaption>rgb</figcaption></figure>
+      <figure><img id="sparseImg"><figcaption>sparse depth</figcaption></figure>
+      <figure><img id="gtImg"><figcaption>gt</figcaption></figure>
+      <figure><img id="refImg"><figcaption>ref pred</figcaption></figure>
+      <figure><img id="boardImg"><figcaption>board pred</figcaption></figure>
+      <figure><img id="errImg"><figcaption>abs error</figcaption></figure>
+    </section>
+
+    <section class="pointSection">
+      <div class="sectionTitle">
+        <h2>Point Cloud</h2>
+        <div class="pointControls">
+          <button id="rgbViewBtn" type="button">RGB View</button>
+          <button id="obliqueViewBtn" type="button">Oblique</button>
+          <button id="topViewBtn" type="button">Top</button>
+          <span id="pointCount"></span>
+        </div>
+      </div>
+      <div id="pointCloud"></div>
+    </section>
+  </main>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
