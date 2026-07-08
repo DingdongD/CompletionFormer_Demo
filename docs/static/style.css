@@ -45,6 +45,7 @@ figcaption { padding: 8px 10px; color: var(--muted); font-size: 12px; border-top
 .sectionTitle { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .pointControls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .pointControls button { width: auto; min-height: 28px; padding: 4px 8px; font-size: 12px; }
+.pointControls button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 #pointCloud { height: 540px; }
 #pointCloud canvas { width: 100%; height: 100%; display: block; }
 #pointCount { color: var(--muted); font-variant-numeric: tabular-nums; }
