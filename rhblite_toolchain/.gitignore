@@ -1,0 +1,20 @@
+# Generated artifacts
+*.onnx
+*.pt
+*.pth
+*.zip
+*.npz
+*.npy
+*.log
+*.bin
+*.hex
+*.tsx
+*.inst
+*.tmp
+*.dot
+*.png
+*.csv.tmp
+output*/
+packer*/
+__pycache__/
+.pytest_cache/

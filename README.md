@@ -82,6 +82,33 @@ http://127.0.0.1:7861
 
 The app keeps RGBD upload and ToF source endpoints reserved for later live input integration.
 
+
+## Full Toolchain Source
+
+The source-level compile and simulation workflow is preserved under:
+
+```text
+rhblite_toolchain/
+```
+
+That directory documents and includes the code for:
+
+```text
+PyTorch submodel -> ONNX export/quantization -> ACompiler compile
+  -> ACSim/cmodel functional simulation -> optional ACTSim timing simulation
+  -> Model-Packer packaging -> board ac_driver/deploy execution
+```
+
+Start with:
+
+```text
+rhblite_toolchain/README.md
+rhblite_toolchain/MANIFEST.md
+```
+
+The toolchain directory is source-only. Generated ONNX files, compiler outputs,
+logs, NPZ outputs, and packer binaries remain excluded by its local `.gitignore`.
+
 ## Important Flags
 
 The board run must use:
