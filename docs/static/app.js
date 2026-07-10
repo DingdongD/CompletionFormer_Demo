@@ -1,4 +1,5 @@
 const sampleSelect = document.getElementById("sampleSelect");
+const modelSelect = document.getElementById("modelSelect");
 const loadBtn = document.getElementById("loadBtn");
 const runStatus = document.getElementById("runStatus");
 const runtimeInfo = document.getElementById("runtimeInfo");
@@ -23,6 +24,10 @@ let manifest = null;
 let currentPointCloud = null;
 let currentPointView = "rgb";
 let plotlyReady = false;
+
+function currentModel() {
+  return modelSelect.value || "completionformer";
+}
 
 const pointViewButtons = {
   rgb: rgbViewBtn,
@@ -232,7 +237,7 @@ function applyPointView(view) {
 
 async function loadSample(index) {
   runStatus.textContent = "Loading";
-  const sample = manifest.samples.find(s => String(s.index) === String(index));
+  const sample = manifest.samples.find(s => String(s.id || s.index) === String(index));
   const meta = await fetch(`${sample.base}/meta.json`).then(r => r.json());
   for (const [key, id] of Object.entries(imageIds)) {
     document.getElementById(id).src = `${sample.base}/${meta.images[key]}`;
@@ -246,18 +251,35 @@ async function loadSample(index) {
 
 async function init() {
   manifest = await fetch("data/manifest.json").then(r => r.json());
-  sampleSelect.replaceChildren();
-  for (const sample of manifest.samples) {
+  modelSelect.replaceChildren();
+  const models = manifest.models || [{ id: "completionformer", name: "CompletionFormer HW128" }];
+  for (const model of models) {
     const opt = document.createElement("option");
-    opt.value = sample.index;
+    opt.value = model.id;
+    opt.textContent = model.name;
+    modelSelect.appendChild(opt);
+  }
+  renderSampleOptions();
+  await loadSample(sampleSelect.value);
+}
+
+function renderSampleOptions() {
+  sampleSelect.replaceChildren();
+  const samples = manifest.samples.filter(s => (s.model || "completionformer") === currentModel());
+  for (const sample of samples) {
+    const opt = document.createElement("option");
+    opt.value = sample.id || sample.index;
     opt.textContent = `${sample.title} | abs ${sample.metrics.abs_mean.toFixed(4)}`;
     sampleSelect.appendChild(opt);
   }
-  runtimeInfo.textContent = `${manifest.samples.length} saved board outputs, ${manifest.point_cloud_sampling}`;
-  await loadSample(manifest.samples[0].index);
+  runtimeInfo.textContent = `${samples.length} saved board outputs, ${manifest.point_cloud_sampling}`;
 }
 
 loadBtn.addEventListener("click", () => loadSample(sampleSelect.value));
+modelSelect.addEventListener("change", async () => {
+  renderSampleOptions();
+  await loadSample(sampleSelect.value);
+});
 sampleSelect.addEventListener("change", () => loadSample(sampleSelect.value));
 rgbViewBtn.addEventListener("click", () => applyPointView("rgb"));
 obliqueViewBtn.addEventListener("click", () => applyPointView("oblique"));

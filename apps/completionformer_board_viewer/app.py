@@ -29,9 +29,34 @@ DEFAULT_PORTABLE_DIR = Path(
 PORTABLE_DIR = Path(os.environ.get("CF_PORTABLE_DIR", DEFAULT_PORTABLE_DIR)).resolve()
 DATASET_NPZ = PORTABLE_DIR / "data" / "nyu_val32_source_128x128.npz"
 OUTPUT_DIR = PORTABLE_DIR / "outputs"
+DEFAULT_CSPN_PACKAGE_DIR = Path(
+    "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/"
+    "cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max"
+)
+CSPN_PACKAGE_DIR = Path(os.environ.get("CSPN_PACKAGE_DIR", DEFAULT_CSPN_PACKAGE_DIR)).resolve()
+CSPN_VIS_NPZ = Path(
+    os.environ.get(
+        "CSPN_VIS_NPZ",
+        "/root/demo/artifacts/visualizations/"
+        "cspn_padded16_depthhead_current/"
+        "cspn_val0_padded16_board_pred_outputs.npz",
+    )
+).resolve()
+CSPN_INPUT_NPZ = CSPN_PACKAGE_DIR / "cspn_real_nyu_val0_calibmax_input.npz"
+CSPN_OUTPUT_NPZ = CSPN_PACKAGE_DIR / "outputs_cspn_app_val0_stagewise_v3_padded16_board.npz"
+CSPN_RUN_LOG = CSPN_PACKAGE_DIR / "board_run_app_val0_padded16.log"
 
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def normalize_model_id(model_id=None) -> str:
+    model_id = (model_id or "completionformer").strip().lower()
+    if model_id in {"cf", "completionformer"}:
+        return "completionformer"
+    if model_id in {"cspn", "cspn-tiny", "cspn_resnettiny"}:
+        return "cspn"
+    raise ValueError(f"Unknown model: {model_id}")
 
 
 def sample_paths(index: int) -> dict[str, Path]:
@@ -129,10 +154,20 @@ def parse_latency_metrics(log_path: Path) -> dict:
         return {}
     latencies = {}
     pattern = re.compile(r"LATENCY\s+([^:]+):\s+([0-9.]+)\s+ms")
+    summary_pattern = re.compile(r"LATENCY_SUMMARY\s+(.+?)\s+([0-9.]+)$")
+    wall_pattern = re.compile(r"LATENCY_WALL_MS\s+([0-9.]+)")
     for line in log_path.read_text(errors="replace").splitlines():
         match = pattern.search(line)
         if match:
             latencies[match.group(1).strip()] = float(match.group(2))
+            continue
+        match = summary_pattern.search(line)
+        if match:
+            latencies[match.group(1).strip()] = float(match.group(2))
+            continue
+        match = wall_pattern.search(line)
+        if match:
+            latencies["wall"] = float(match.group(1))
     if not latencies:
         return {}
     total = latencies.get("decoder_system_128x128_ckpt_tracked_total")
@@ -153,7 +188,8 @@ def parse_latency_metrics(log_path: Path) -> dict:
         "latencies_ms": latencies,
     }
 
-def load_sample_payload(index: int) -> dict:
+
+def load_completionformer_payload(index: int) -> dict:
     paths = sample_paths(index)
     if not paths["vis_npz"].exists():
         raise FileNotFoundError(f"Board visualization NPZ does not exist: {paths['vis_npz']}")
@@ -198,7 +234,72 @@ def load_sample_payload(index: int) -> dict:
     }
 
 
-def run_board_sample(index: int) -> dict:
+def load_cspn_payload(index: int) -> dict:
+    if index != 0:
+        raise FileNotFoundError("The packaged CSPN board demo currently includes sample 0 only.")
+    if not CSPN_VIS_NPZ.exists():
+        raise FileNotFoundError(f"CSPN visualization NPZ does not exist: {CSPN_VIS_NPZ}")
+    z = np.load(CSPN_VIS_NPZ)
+    rgb01 = np.asarray(z["rgb"], dtype=np.float32)
+    if rgb01.ndim == 4:
+        rgb01 = rgb01[0]
+    if rgb01.shape[0] == 3:
+        rgb01 = np.transpose(rgb01, (1, 2, 0))
+    rgb01 = np.clip(rgb01, 0.0, 1.0)
+    dep = squeeze_hw(z["sparse"])
+    gt = squeeze_hw(z["gt"])
+    ref_pred = squeeze_hw(z["ref_pred"])
+    board_pred = squeeze_hw(z["board_pred"])
+    board_pred_init = squeeze_hw(z["board_raw"]) if "board_raw" in z.files else board_pred
+    err = np.abs(board_pred - ref_pred)
+    depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
+    depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
+    sparse_vis = np.where(dep > 0, dep, np.nan)
+    metrics = {
+        "abs_mean": float(np.nanmean(err)),
+        "abs_p95": float(np.nanpercentile(err, 95)),
+        "abs_max": float(np.nanmax(err)),
+        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "ref_min": float(np.nanmin(ref_pred)),
+        "ref_max": float(np.nanmax(ref_pred)),
+        "board_min": float(np.nanmin(board_pred)),
+        "board_max": float(np.nanmax(board_pred)),
+        "board_init_min": float(np.nanmin(board_pred_init)),
+        "board_init_max": float(np.nanmax(board_pred_init)),
+    }
+    metrics.update(parse_latency_metrics(CSPN_RUN_LOG if CSPN_RUN_LOG.exists() else CSPN_PACKAGE_DIR / "board_run_padded16_depthhead_repeat2.log"))
+    return {
+        "index": index,
+        "model": "cspn",
+        "portable_dir": str(CSPN_PACKAGE_DIR),
+        "paths": {
+            "vis_npz": str(CSPN_VIS_NPZ),
+            "board_npz": str(CSPN_OUTPUT_NPZ if CSPN_OUTPUT_NPZ.exists() else CSPN_PACKAGE_DIR / "outputs_cspn_real_nyu_val0_stagewise_v3_padded16_depthhead_repeat2_board.npz"),
+            "log": str(CSPN_RUN_LOG if CSPN_RUN_LOG.exists() else CSPN_PACKAGE_DIR / "board_run_padded16_depthhead_repeat2.log"),
+        },
+        "metrics": metrics,
+        "images": {
+            "rgb": png_data_uri_rgb(rgb01),
+            "sparse_depth": png_data_uri_map(sparse_vis, depth_vmin, depth_vmax),
+            "gt": png_data_uri_map(gt, depth_vmin, depth_vmax),
+            "ref_pred": png_data_uri_map(ref_pred, depth_vmin, depth_vmax),
+            "board_pred": png_data_uri_map(board_pred, depth_vmin, depth_vmax),
+            "abs_error": png_data_uri_map(err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma"),
+        },
+        "point_cloud": point_cloud_payload(rgb01, board_pred),
+    }
+
+
+def load_sample_payload(index: int, model_id: str = "completionformer") -> dict:
+    model_id = normalize_model_id(model_id)
+    if model_id == "cspn":
+        return load_cspn_payload(index)
+    payload = load_completionformer_payload(index)
+    payload["model"] = "completionformer"
+    return payload
+
+
+def run_completionformer_board_sample(index: int) -> dict:
     script = PORTABLE_DIR / "run_board_single_sample.sh"
     if not script.exists():
         raise FileNotFoundError(f"Missing board runner: {script}")
@@ -223,7 +324,99 @@ def run_board_sample(index: int) -> dict:
     }
 
 
-def list_samples() -> dict:
+def run_cspn_board_sample(index: int) -> dict:
+    if index != 0:
+        return {
+            "returncode": 2,
+            "elapsed_sec": 0.0,
+            "output_tail": "CSPN packaged board runner currently exposes val0/sample0 only.",
+        }
+    runner = CSPN_PACKAGE_DIR / "cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py"
+    if not runner.exists():
+        raise FileNotFoundError(f"Missing CSPN board runner: {runner}")
+    board = os.environ.get("BOARD", "root@192.168.115.122")
+    board_pass = os.environ.get("BOARD_PASS", "root")
+    board_pkg = os.environ.get(
+        "CSPN_BOARD_PKG",
+        "/home/root/workspace/demo_vp_xj/packers/cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max",
+    )
+    cmd = (
+        "set -e; "
+        f"cd '{board_pkg}'; "
+        "python3 cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py "
+        f"'{board_pkg}' --input-npz cspn_real_nyu_val0_calibmax_input.npz "
+        "--save outputs_cspn_app_val0_stagewise_v3_padded16_board.npz "
+        "--unit-scales --use-scaled-simple --use-scaled-fullsplit"
+    )
+    started = time.time()
+    proc = subprocess.run(
+        [
+            "sshpass",
+            "-p",
+            board_pass,
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            board,
+            cmd,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=int(os.environ.get("CSPN_BOARD_TIMEOUT", "1200")),
+    )
+    elapsed = time.time() - started
+    CSPN_RUN_LOG.write_text(proc.stdout)
+    if proc.returncode == 0:
+        subprocess.run(
+            [
+                "sshpass",
+                "-p",
+                board_pass,
+                "scp",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                f"{board}:{board_pkg}/outputs_cspn_app_val0_stagewise_v3_padded16_board.npz",
+                str(CSPN_OUTPUT_NPZ),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=120,
+        )
+    return {
+        "returncode": proc.returncode,
+        "elapsed_sec": elapsed,
+        "output_tail": "\n".join(proc.stdout.splitlines()[-80:]),
+    }
+
+
+def run_board_sample(index: int, model_id: str = "completionformer") -> dict:
+    model_id = normalize_model_id(model_id)
+    if model_id == "cspn":
+        return run_cspn_board_sample(index)
+    return run_completionformer_board_sample(index)
+
+
+def list_samples(model_id: str = "completionformer") -> dict:
+    model_id = normalize_model_id(model_id)
+    if model_id == "cspn":
+        return {
+            "model": "cspn",
+            "portable_dir": str(CSPN_PACKAGE_DIR),
+            "samples": [
+                {
+                    "index": 0,
+                    "has_board_output": CSPN_VIS_NPZ.exists(),
+                    "vis_npz": str(CSPN_VIS_NPZ),
+                    "vis_png": "",
+                }
+            ],
+        }
     count = 32
     if DATASET_NPZ.exists():
         with np.load(DATASET_NPZ) as z:
@@ -238,7 +431,24 @@ def list_samples() -> dict:
             "vis_npz": str(paths["vis_npz"]),
             "vis_png": str(paths["vis_png"]),
         })
-    return {"portable_dir": str(PORTABLE_DIR), "samples": samples}
+    return {"model": "completionformer", "portable_dir": str(PORTABLE_DIR), "samples": samples}
+
+
+def list_models() -> dict:
+    return {
+        "models": [
+            {
+                "id": "completionformer",
+                "name": "CompletionFormer HW128",
+                "description": "ckpt00059 RHB conv-only confidence-head deployment",
+            },
+            {
+                "id": "cspn",
+                "name": "CSPN ResNetTiny HW128",
+                "description": "stagewise scale-aware RHB deployment with padded16 final depth head",
+            },
+        ]
+    }
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -251,12 +461,16 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        model_id = query.get("model", ["completionformer"])[0]
+        if parsed.path == "/api/models":
+            return self.write_json(list_models())
         if parsed.path == "/api/samples":
-            return self.write_json(list_samples())
+            return self.write_json(list_samples(model_id))
         if parsed.path.startswith("/api/sample/"):
             try:
                 index = int(parsed.path.rsplit("/", 1)[-1])
-                return self.write_json(load_sample_payload(index))
+                return self.write_json(load_sample_payload(index, model_id))
             except Exception as exc:
                 return self.write_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
         if parsed.path == "/api/tof/status":
@@ -268,13 +482,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        model_id = query.get("model", ["completionformer"])[0]
         if parsed.path.startswith("/api/run/"):
             try:
                 index = int(parsed.path.rsplit("/", 1)[-1])
-                run = run_board_sample(index)
+                run = run_board_sample(index, model_id)
                 payload = {"run": run}
                 if run["returncode"] == 0:
-                    payload["sample"] = load_sample_payload(index)
+                    payload["sample"] = load_sample_payload(index, model_id)
                 status = HTTPStatus.OK if run["returncode"] == 0 else HTTPStatus.INTERNAL_SERVER_ERROR
                 return self.write_json(payload, status)
             except Exception as exc:

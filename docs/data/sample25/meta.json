@@ -1,6 +1,6 @@
 {
   "index": 25,
-  "title": "sample 25",
+  "title": "CompletionFormer sample 25",
   "base": "data/sample25",
   "images": {
     "rgb": "rgb.png",
@@ -44,5 +44,7 @@
       "decoder_system_128x128_ckpt_tracked_total": 4177.537
     }
   },
-  "source_npz": "outputs/sample25/nyu_val25_ref_vs_board_convonlycf_hostsigmoid.npz"
+  "source_npz": "outputs/sample25/nyu_val25_ref_vs_board_convonlycf_hostsigmoid.npz",
+  "id": "completionformer:25",
+  "model": "completionformer"
 }

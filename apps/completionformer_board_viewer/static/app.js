@@ -1,3 +1,4 @@
+const modelSelect = document.getElementById("modelSelect");
 const sampleSelect = document.getElementById("sampleSelect");
 const loadBtn = document.getElementById("loadBtn");
 const runBtn = document.getElementById("runBtn");
@@ -23,6 +24,10 @@ const imageIds = {
   board_pred: "boardImg",
   abs_error: "errImg",
 };
+
+function currentModel() {
+  return modelSelect.value || "completionformer";
+}
 
 function setBusy(text) {
   runStatus.textContent = text;
@@ -215,7 +220,7 @@ function renderPointCloud(pc) {
 }
 
 async function loadSamples() {
-  const res = await fetch("/api/samples");
+  const res = await fetch(`/api/samples?model=${encodeURIComponent(currentModel())}`);
   const data = await res.json();
   sampleSelect.replaceChildren();
   for (const s of data.samples) {
@@ -229,7 +234,7 @@ async function loadSamples() {
 async function loadCurrent() {
   const idx = sampleSelect.value || "0";
   setBusy("Loading");
-  const res = await fetch(`/api/sample/${idx}`);
+  const res = await fetch(`/api/sample/${idx}?model=${encodeURIComponent(currentModel())}`);
   const data = await res.json();
   if (!res.ok) {
     setBusy("Missing output");
@@ -247,7 +252,7 @@ async function runCurrent() {
   boardLog.textContent = "Starting board pipeline...\nThis usually takes tens of seconds. Waiting for run_board_single_sample.sh to finish.";
   runBtn.disabled = true;
   try {
-    const res = await fetch(`/api/run/${idx}`, { method: "POST" });
+    const res = await fetch(`/api/run/${idx}?model=${encodeURIComponent(currentModel())}`, { method: "POST" });
     const data = await res.json();
     if (data.run?.output_tail) {
       boardLog.textContent = data.run.output_tail;
@@ -266,6 +271,18 @@ async function runCurrent() {
   }
 }
 
+async function loadModels() {
+  const res = await fetch("/api/models");
+  const data = await res.json();
+  modelSelect.replaceChildren();
+  for (const model of data.models) {
+    const opt = document.createElement("option");
+    opt.value = model.id;
+    opt.textContent = model.name;
+    modelSelect.appendChild(opt);
+  }
+}
+
 async function stageRgbd() {
   const res = await fetch("/api/upload-rgbd", { method: "POST" });
   const data = await res.json();
@@ -280,13 +297,19 @@ async function checkTof() {
 
 loadBtn.addEventListener("click", loadCurrent);
 runBtn.addEventListener("click", runCurrent);
+modelSelect.addEventListener("change", async () => {
+  setBusy("Switching model");
+  await loadSamples();
+  sampleSelect.value = "0";
+  await loadCurrent();
+});
 uploadBtn.addEventListener("click", stageRgbd);
 tofBtn.addEventListener("click", checkTof);
 rgbViewBtn.addEventListener("click", () => applyPointView(pointViews.rgb));
 obliqueViewBtn.addEventListener("click", () => applyPointView(pointViews.oblique));
 topViewBtn.addEventListener("click", () => applyPointView(pointViews.top));
 
-loadSamples().then(() => {
+loadModels().then(loadSamples).then(() => {
   sampleSelect.value = "0";
   loadCurrent();
 });

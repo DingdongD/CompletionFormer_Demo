@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CompletionFormer Board Viewer</title>
+  <title>RHB Board Depth Viewer</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -12,10 +12,15 @@
     <div class="brand">
       <div class="mark"></div>
       <div>
-        <h1>CompletionFormer</h1>
-        <p>RHB board output viewer</p>
+        <h1>RHB Depth</h1>
+        <p>board output viewer</p>
       </div>
     </div>
+
+    <section class="panel">
+      <label for="modelSelect">Model</label>
+      <select id="modelSelect"></select>
+    </section>
 
     <section class="panel">
       <label for="sampleSelect">NYU sample</label>
