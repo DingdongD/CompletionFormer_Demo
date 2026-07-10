@@ -13,6 +13,7 @@ const pointCount = document.getElementById("pointCount");
 const rgbViewBtn = document.getElementById("rgbViewBtn");
 const obliqueViewBtn = document.getElementById("obliqueViewBtn");
 const topViewBtn = document.getElementById("topViewBtn");
+const bevViewBtn = document.getElementById("bevViewBtn");
 const boardLog = document.getElementById("boardLog");
 const logState = document.getElementById("logState");
 
@@ -69,7 +70,15 @@ const pointViews = {
   rgb: "rgb",
   oblique: "oblique",
   top: "top",
+  bev: "bev",
   free: "free",
+};
+
+const pointViewButtons = {
+  rgb: rgbViewBtn,
+  oblique: obliqueViewBtn,
+  top: topViewBtn,
+  bev: bevViewBtn,
 };
 
 const plotlyCameras = {
@@ -99,7 +108,12 @@ let plotlyReady = false;
 
 function applyPointView(view) {
   currentPointView = view;
+  setPointControlState(view);
   if (!currentPointCloud) return;
+  if (window.Plotly && view === pointViews.bev) {
+    renderBevPlotly(currentPointCloud);
+    return;
+  }
   if (window.Plotly && plotlyReady && view !== pointViews.free) {
     Plotly.relayout("pointCloud", { "scene.camera": plotlyCameras[view] });
     return;
@@ -116,7 +130,7 @@ function projectedPoint(x, y, z, view) {
   if (view === pointViews.rgb || view === pointViews.free) {
     return { u: x, v: y, depth: -z };
   }
-  if (view === pointViews.top) {
+  if (view === pointViews.top || view === pointViews.bev) {
     return { u: x, v: z, depth: -y };
   }
   const yaw = -0.75;
@@ -209,11 +223,49 @@ function renderPointCloudPlotly(pc) {
   plotlyReady = true;
 }
 
+function renderBevPlotly(pc) {
+  const trace = {
+    type: "scattergl",
+    mode: "markers",
+    x: pc.x,
+    y: pc.z,
+    marker: { size: 3, color: pc.color, opacity: 0.95 },
+    hovertemplate: "x=%{x:.3f}<br>z=%{y:.3f}<extra></extra>",
+  };
+  const layout = {
+    margin: { l: 46, r: 12, t: 10, b: 42 },
+    paper_bgcolor: "#ffffff",
+    plot_bgcolor: "#ffffff",
+    xaxis: {
+      title: "x",
+      zeroline: false,
+      showgrid: true,
+      scaleanchor: "y",
+      scaleratio: 1,
+    },
+    yaxis: {
+      title: "z / depth",
+      zeroline: false,
+      showgrid: true,
+    },
+  };
+  Plotly.react("pointCloud", [trace], layout, { responsive: true, displayModeBar: true });
+  plotlyReady = true;
+}
+
+function setPointControlState(view) {
+  for (const [key, button] of Object.entries(pointViewButtons)) {
+    button.classList.toggle("active", key === view);
+  }
+}
+
 function renderPointCloud(pc) {
   currentPointCloud = pc;
+  setPointControlState(currentPointView);
   pointCount.textContent = `${pc.count} points`;
   if (window.Plotly) {
-    renderPointCloudPlotly(pc);
+    if (currentPointView === pointViews.bev) renderBevPlotly(pc);
+    else renderPointCloudPlotly(pc);
   } else {
     drawPointCloudCanvas(pc);
   }
@@ -308,6 +360,7 @@ tofBtn.addEventListener("click", checkTof);
 rgbViewBtn.addEventListener("click", () => applyPointView(pointViews.rgb));
 obliqueViewBtn.addEventListener("click", () => applyPointView(pointViews.oblique));
 topViewBtn.addEventListener("click", () => applyPointView(pointViews.top));
+bevViewBtn.addEventListener("click", () => applyPointView(pointViews.bev));
 
 loadModels().then(loadSamples).then(() => {
   sampleSelect.value = "0";

@@ -196,6 +196,12 @@ figcaption {
   font-size: 12px;
 }
 
+.pointControls button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 #pointCloud {
   height: 520px;
 }
