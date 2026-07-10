@@ -35,7 +35,7 @@ CF_PORTABLE_DIR=/path/to/portable_runtime python apps/completionformer_board_vie
 The CSPN package defaults to:
 
 ```text
-/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max
+/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample
 ```
 
 Override with:
@@ -65,7 +65,7 @@ python3 cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py 
   <board_package> \
   --input-npz cspn_real_nyu_val0_calibmax_input.npz \
   --save outputs_cspn_app_val0_stagewise_v3_padded16_board.npz \
-  --unit-scales --use-scaled-simple --use-scaled-fullsplit
+  --unit-scales --use-scaled-simple --use-scaled-fullsplit --use-padded-depth-head
 ```
 
 ## Interfaces

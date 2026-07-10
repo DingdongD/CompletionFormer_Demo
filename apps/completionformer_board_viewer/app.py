@@ -31,20 +31,23 @@ DATASET_NPZ = PORTABLE_DIR / "data" / "nyu_val32_source_128x128.npz"
 OUTPUT_DIR = PORTABLE_DIR / "outputs"
 DEFAULT_CSPN_PACKAGE_DIR = Path(
     "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/"
-    "cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max"
+    "cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample"
 )
 CSPN_PACKAGE_DIR = Path(os.environ.get("CSPN_PACKAGE_DIR", DEFAULT_CSPN_PACKAGE_DIR)).resolve()
-CSPN_VIS_NPZ = Path(
+CSPN_VIS_ROOT = Path(os.environ.get("CSPN_VIS_ROOT", PORTABLE_DIR / "outputs")).resolve()
+CSPN_VAL32_INPUT_DIR = Path(
     os.environ.get(
-        "CSPN_VIS_NPZ",
-        "/root/demo/artifacts/visualizations/"
-        "cspn_padded16_depthhead_current/"
-        "cspn_val0_padded16_board_pred_outputs.npz",
+        "CSPN_VAL32_INPUT_DIR",
+        "/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/inputs",
     )
 ).resolve()
-CSPN_INPUT_NPZ = CSPN_PACKAGE_DIR / "cspn_real_nyu_val0_calibmax_input.npz"
-CSPN_OUTPUT_NPZ = CSPN_PACKAGE_DIR / "outputs_cspn_app_val0_stagewise_v3_padded16_board.npz"
-CSPN_RUN_LOG = CSPN_PACKAGE_DIR / "board_run_app_val0_padded16.log"
+CSPN_VAL32_BOARD_DIR = Path(
+    os.environ.get(
+        "CSPN_VAL32_BOARD_DIR",
+        "/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/outputs",
+    )
+).resolve()
+CSPN_EXPORT_SCRIPT = PORTABLE_DIR / "scripts" / "export_cspn_app_val_outputs.py"
 
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -235,11 +238,12 @@ def load_completionformer_payload(index: int) -> dict:
 
 
 def load_cspn_payload(index: int) -> dict:
-    if index != 0:
-        raise FileNotFoundError("The packaged CSPN board demo currently includes sample 0 only.")
-    if not CSPN_VIS_NPZ.exists():
-        raise FileNotFoundError(f"CSPN visualization NPZ does not exist: {CSPN_VIS_NPZ}")
-    z = np.load(CSPN_VIS_NPZ)
+    vis_npz = CSPN_VIS_ROOT / f"cspn_sample{index}" / f"cspn_val{index}_padded16_board_pred_outputs.npz"
+    board_npz = CSPN_VAL32_BOARD_DIR / f"cspn_val{index:02d}_board_padded16_clearwr_run1.npz"
+    log_path = CSPN_VAL32_BOARD_DIR / "run_all_unit_clearwr_run1.log"
+    if not vis_npz.exists():
+        raise FileNotFoundError(f"CSPN visualization NPZ does not exist: {vis_npz}")
+    z = np.load(vis_npz)
     rgb01 = np.asarray(z["rgb"], dtype=np.float32)
     if rgb01.ndim == 4:
         rgb01 = rgb01[0]
@@ -267,15 +271,15 @@ def load_cspn_payload(index: int) -> dict:
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
     }
-    metrics.update(parse_latency_metrics(CSPN_RUN_LOG if CSPN_RUN_LOG.exists() else CSPN_PACKAGE_DIR / "board_run_padded16_depthhead_repeat2.log"))
+    metrics.update(parse_latency_metrics(log_path))
     return {
         "index": index,
         "model": "cspn",
         "portable_dir": str(CSPN_PACKAGE_DIR),
         "paths": {
-            "vis_npz": str(CSPN_VIS_NPZ),
-            "board_npz": str(CSPN_OUTPUT_NPZ if CSPN_OUTPUT_NPZ.exists() else CSPN_PACKAGE_DIR / "outputs_cspn_real_nyu_val0_stagewise_v3_padded16_depthhead_repeat2_board.npz"),
-            "log": str(CSPN_RUN_LOG if CSPN_RUN_LOG.exists() else CSPN_PACKAGE_DIR / "board_run_padded16_depthhead_repeat2.log"),
+            "vis_npz": str(vis_npz),
+            "board_npz": str(board_npz),
+            "log": str(log_path),
         },
         "metrics": metrics,
         "images": {
@@ -325,28 +329,76 @@ def run_completionformer_board_sample(index: int) -> dict:
 
 
 def run_cspn_board_sample(index: int) -> dict:
-    if index != 0:
-        return {
-            "returncode": 2,
-            "elapsed_sec": 0.0,
-            "output_tail": "CSPN packaged board runner currently exposes val0/sample0 only.",
-        }
     runner = CSPN_PACKAGE_DIR / "cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py"
     if not runner.exists():
         raise FileNotFoundError(f"Missing CSPN board runner: {runner}")
+    input_npz = CSPN_VAL32_INPUT_DIR / f"cspn_val{index:02d}_input.npz"
+    if not input_npz.exists():
+        raise FileNotFoundError(f"Missing CSPN input NPZ: {input_npz}")
     board = os.environ.get("BOARD", "root@192.168.115.122")
     board_pass = os.environ.get("BOARD_PASS", "root")
     board_pkg = os.environ.get(
         "CSPN_BOARD_PKG",
-        "/home/root/workspace/demo_vp_xj/packers/cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max",
+        "/home/root/workspace/demo_vp_xj/packers/cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample",
     )
+    remote_input = f"app_inputs/cspn_val{index:02d}_input.npz"
+    remote_output = f"app_outputs/cspn_val{index:02d}_board_padded16_clearwr_run1.npz"
+    local_output = CSPN_VAL32_BOARD_DIR / f"cspn_val{index:02d}_board_padded16_clearwr_run1.npz"
+    prep_cmd = f"mkdir -p '{board_pkg}/app_inputs' '{board_pkg}/app_outputs'"
+    prep = subprocess.run(
+        [
+            "sshpass",
+            "-p",
+            board_pass,
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            board,
+            prep_cmd,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=120,
+    )
+    if prep.returncode != 0:
+        return {"returncode": prep.returncode, "elapsed_sec": 0.0, "output_tail": prep.stdout}
+    for local_path in [
+        runner,
+        CSPN_PACKAGE_DIR / "cspn_stagewise_scales_orig_val0_20260709.csv",
+        input_npz,
+    ]:
+        target = f"{board}:{board_pkg}/app_inputs/" if local_path == input_npz else f"{board}:{board_pkg}/"
+        scp = subprocess.run(
+            [
+                "sshpass",
+                "-p",
+                board_pass,
+                "scp",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                str(local_path),
+                target,
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=180,
+        )
+        if scp.returncode != 0:
+            return {"returncode": scp.returncode, "elapsed_sec": 0.0, "output_tail": scp.stdout}
     cmd = (
         "set -e; "
         f"cd '{board_pkg}'; "
         "python3 cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py "
-        f"'{board_pkg}' --input-npz cspn_real_nyu_val0_calibmax_input.npz "
-        "--save outputs_cspn_app_val0_stagewise_v3_padded16_board.npz "
-        "--unit-scales --use-scaled-simple --use-scaled-fullsplit"
+        f"'{board_pkg}' --input-npz '{remote_input}' "
+        f"--save '{remote_output}' "
+        "--scales-csv cspn_stagewise_scales_orig_val0_20260709.csv "
+        "--unit-scales --use-scaled-simple --use-scaled-fullsplit --use-padded-depth-head"
     )
     started = time.time()
     proc = subprocess.run(
@@ -368,9 +420,9 @@ def run_cspn_board_sample(index: int) -> dict:
         timeout=int(os.environ.get("CSPN_BOARD_TIMEOUT", "1200")),
     )
     elapsed = time.time() - started
-    CSPN_RUN_LOG.write_text(proc.stdout)
+    (CSPN_VAL32_BOARD_DIR / f"cspn_val{index:02d}_app_run.log").write_text(proc.stdout)
     if proc.returncode == 0:
-        subprocess.run(
+        scp_back = subprocess.run(
             [
                 "sshpass",
                 "-p",
@@ -380,14 +432,32 @@ def run_cspn_board_sample(index: int) -> dict:
                 "StrictHostKeyChecking=no",
                 "-o",
                 "UserKnownHostsFile=/dev/null",
-                f"{board}:{board_pkg}/outputs_cspn_app_val0_stagewise_v3_padded16_board.npz",
-                str(CSPN_OUTPUT_NPZ),
+                f"{board}:{board_pkg}/{remote_output}",
+                str(local_output),
             ],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             timeout=120,
         )
+        if scp_back.returncode == 0 and CSPN_EXPORT_SCRIPT.exists():
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CSPN_EXPORT_SCRIPT),
+                    "--sample-index",
+                    str(index),
+                    "--board-dir",
+                    str(CSPN_VAL32_BOARD_DIR),
+                    "--out-root",
+                    str(CSPN_VIS_ROOT),
+                ],
+                cwd=str(PORTABLE_DIR),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=180,
+            )
     return {
         "returncode": proc.returncode,
         "elapsed_sec": elapsed,
@@ -405,17 +475,21 @@ def run_board_sample(index: int, model_id: str = "completionformer") -> dict:
 def list_samples(model_id: str = "completionformer") -> dict:
     model_id = normalize_model_id(model_id)
     if model_id == "cspn":
+        samples = []
+        for i in range(32):
+            vis_npz = CSPN_VIS_ROOT / f"cspn_sample{i}" / f"cspn_val{i}_padded16_board_pred_outputs.npz"
+            samples.append(
+                {
+                    "index": i,
+                    "has_board_output": vis_npz.exists(),
+                    "vis_npz": str(vis_npz),
+                    "vis_png": "",
+                }
+            )
         return {
             "model": "cspn",
             "portable_dir": str(CSPN_PACKAGE_DIR),
-            "samples": [
-                {
-                    "index": 0,
-                    "has_board_output": CSPN_VIS_NPZ.exists(),
-                    "vis_npz": str(CSPN_VIS_NPZ),
-                    "vis_png": "",
-                }
-            ],
+            "samples": samples,
         }
     count = 32
     if DATASET_NPZ.exists():

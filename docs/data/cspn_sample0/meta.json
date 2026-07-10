@@ -112,5 +112,5 @@
       "cspn_test.scale_compensated.cspn_resnettiny_hw128_w24_step8_guidance_head_conv1_scaleprobe_single_conv_io_fold": 60.666
     }
   },
-  "source_npz": "/root/demo/artifacts/visualizations/cspn_padded16_depthhead_current/cspn_val0_padded16_board_pred_outputs.npz"
+  "source_npz": "outputs/cspn_sample0/cspn_val0_padded16_board_pred_outputs.npz"
 }

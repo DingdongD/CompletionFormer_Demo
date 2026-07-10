@@ -12,11 +12,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = ROOT / "docs" / "data"
-CSPN_VIS_NPZ = Path(
-    "/root/demo/artifacts/visualizations/"
-    "cspn_padded16_depthhead_current/"
-    "cspn_val0_padded16_board_pred_outputs.npz"
-)
+CSPN_VIS_ROOT = ROOT / "outputs"
 CSPN_LOG = Path(
     "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/"
     "cspn_resnettiny_hw128_w24_step8_stagewise_v3_calib128_max/"
@@ -192,7 +188,8 @@ def export_sample(npz_path: Path) -> dict:
 
 
 def export_cspn_sample(npz_path: Path) -> dict:
-    out_dir = OUT_ROOT / "cspn_sample0"
+    idx = sample_index(npz_path)
+    out_dir = OUT_ROOT / f"cspn_sample{idx}"
     out_dir.mkdir(parents=True, exist_ok=True)
     z = np.load(npz_path)
     rgb = np.asarray(z["rgb"], dtype=np.float32)
@@ -243,15 +240,15 @@ def export_cspn_sample(npz_path: Path) -> dict:
     pc_path = out_dir / "point_cloud.json"
     pc_path.write_text(json.dumps(point_cloud(rgb, board_pred), separators=(",", ":")))
     meta = {
-        "id": "cspn:0",
-        "index": 0,
+        "id": f"cspn:{idx}",
+        "index": idx,
         "model": "cspn",
-        "title": "CSPN sample 0",
-        "base": "data/cspn_sample0",
+        "title": f"CSPN sample {idx}",
+        "base": f"data/cspn_sample{idx}",
         "images": images,
         "point_cloud": "point_cloud.json",
         "metrics": metrics,
-        "source_npz": str(npz_path),
+        "source_npz": str(npz_path.relative_to(ROOT)),
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
     return meta
@@ -270,8 +267,8 @@ def main() -> None:
         sample["model"] = "completionformer"
         sample["title"] = f"CompletionFormer sample {sample['index']}"
         (OUT_ROOT / f"sample{sample['index']}" / "meta.json").write_text(json.dumps(sample, indent=2))
-    if CSPN_VIS_NPZ.exists():
-        samples.append(export_cspn_sample(CSPN_VIS_NPZ))
+    cspn_npzs = sorted(CSPN_VIS_ROOT.glob("cspn_sample*/cspn_val*_padded16_board_pred_outputs.npz"), key=sample_index)
+    samples.extend(export_cspn_sample(p) for p in cspn_npzs)
     manifest = {
         "name": "RHB board depth demo",
         "generated_from": "CompletionFormer outputs/sample*/ plus CSPN padded16 sample0 when available",
