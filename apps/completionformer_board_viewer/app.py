@@ -38,13 +38,13 @@ CSPN_VIS_ROOT = Path(os.environ.get("CSPN_VIS_ROOT", PORTABLE_DIR / "outputs")).
 CSPN_VAL32_INPUT_DIR = Path(
     os.environ.get(
         "CSPN_VAL32_INPUT_DIR",
-        "/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/inputs",
+        str(PORTABLE_DIR / "outputs" / "cspn_unified_input" / "inputs"),
     )
 ).resolve()
 CSPN_VAL32_BOARD_DIR = Path(
     os.environ.get(
         "CSPN_VAL32_BOARD_DIR",
-        "/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/outputs",
+        str(PORTABLE_DIR / "outputs" / "cspn_unified_input" / "board_outputs"),
     )
 ).resolve()
 CSPN_EXPORT_SCRIPT = PORTABLE_DIR / "scripts" / "export_cspn_app_val_outputs.py"
@@ -240,7 +240,7 @@ def load_completionformer_payload(index: int) -> dict:
 def load_cspn_payload(index: int) -> dict:
     vis_npz = CSPN_VIS_ROOT / f"cspn_sample{index}" / f"cspn_val{index}_padded16_board_pred_outputs.npz"
     board_npz = CSPN_VAL32_BOARD_DIR / f"cspn_val{index:02d}_board_padded16_clearwr_run1.npz"
-    log_path = CSPN_VAL32_BOARD_DIR / "run_all_unit_clearwr_run1.log"
+    log_path = CSPN_VAL32_BOARD_DIR / "run_all_unified_clearwr.log"
     if not vis_npz.exists():
         raise FileNotFoundError(f"CSPN visualization NPZ does not exist: {vis_npz}")
     z = np.load(vis_npz)

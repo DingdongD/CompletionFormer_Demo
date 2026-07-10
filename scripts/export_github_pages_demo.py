@@ -271,7 +271,7 @@ def main() -> None:
     samples.extend(export_cspn_sample(p) for p in cspn_npzs)
     manifest = {
         "name": "RHB board depth demo",
-        "generated_from": "CompletionFormer outputs/sample*/ plus CSPN padded16 sample0 when available",
+        "generated_from": "CompletionFormer outputs/sample*/ plus CSPN unified 32-sample board outputs",
         "point_cloud_sampling": "stride=1 full 128x128 board_pred points",
         "models": [
             {"id": "completionformer", "name": "CompletionFormer HW128"},

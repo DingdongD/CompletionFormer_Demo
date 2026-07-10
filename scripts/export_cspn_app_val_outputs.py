@@ -70,11 +70,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--input-dir",
-        default="/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/inputs",
+        default=str(ROOT / "outputs" / "cspn_unified_input" / "inputs"),
     )
     parser.add_argument(
         "--board-dir",
-        default="/root/demo/artifacts/rhb_auto_config_framework/work/cspn_val32_board_padded16_20260709/outputs",
+        default=str(ROOT / "outputs" / "cspn_unified_input" / "board_outputs"),
     )
     parser.add_argument(
         "--ckpt",

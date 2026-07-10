@@ -41,7 +41,23 @@ The CSPN package defaults to:
 Override with:
 
 ```bash
-CSPN_PACKAGE_DIR=/path/to/cspn_package CSPN_VIS_NPZ=/path/to/cspn_vis.npz python apps/completionformer_board_viewer/app.py
+CSPN_PACKAGE_DIR=/path/to/cspn_package \
+CSPN_VAL32_INPUT_DIR=/path/to/cspn_inputs \
+CSPN_VAL32_BOARD_DIR=/path/to/cspn_board_outputs \
+python apps/completionformer_board_viewer/app.py
+```
+
+CSPN inputs are generated from the same CompletionFormer NYU source NPZ:
+
+```text
+data/nyu_val32_source_128x128.npz
+```
+
+The generated CSPN RGBD inputs and board outputs live under:
+
+```text
+outputs/cspn_unified_input/inputs
+outputs/cspn_unified_input/board_outputs
 ```
 
 ## Board Run
@@ -58,14 +74,18 @@ The UI then loads:
 outputs/sample<idx>/nyu_val<idx>_ref_vs_board_convonlycf_hostsigmoid.npz
 ```
 
-For CSPN, the current packaged runner exposes sample 0 and executes:
+For CSPN, the app uses the unified input source and executes one of the 32 packaged NYU samples:
 
 ```bash
 python3 cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py \
   <board_package> \
-  --input-npz cspn_real_nyu_val0_calibmax_input.npz \
-  --save outputs_cspn_app_val0_stagewise_v3_padded16_board.npz \
-  --unit-scales --use-scaled-simple --use-scaled-fullsplit --use-padded-depth-head
+  --input-npz app_inputs/cspn_valXX_input.npz \
+  --save app_outputs/cspn_valXX_board_padded16_clearwr_run1.npz \
+  --scales-csv cspn_stagewise_scales_orig_val0_20260709.csv \
+  --unit-scales \
+  --use-scaled-simple \
+  --use-scaled-fullsplit \
+  --use-padded-depth-head
 ```
 
 ## Interfaces
