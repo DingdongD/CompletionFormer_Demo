@@ -1,4 +1,5 @@
 const modelSelect = document.getElementById("modelSelect");
+const modelStatus = document.getElementById("modelStatus");
 const sampleSelect = document.getElementById("sampleSelect");
 const loadBtn = document.getElementById("loadBtn");
 const runBtn = document.getElementById("runBtn");
@@ -26,6 +27,8 @@ const imageIds = {
   abs_error: "errImg",
 };
 
+let modelInfo = {};
+
 function currentModel() {
   return modelSelect.value || "completionformer";
 }
@@ -49,8 +52,9 @@ function renderSample(payload) {
   for (const [key, id] of Object.entries(imageIds)) {
     document.getElementById(id).src = payload.images[key];
   }
-  pathLine.textContent = payload.paths.vis_npz;
+  pathLine.textContent = `${payload.model.label}: ${payload.paths.vis_npz}`;
   const metricRows = [
+    metricRow("model", payload.model.label),
     metricRow("abs mean", payload.metrics.abs_mean),
     metricRow("abs p95", payload.metrics.abs_p95),
     metricRow("rmse", payload.metrics.rmse),
@@ -61,6 +65,12 @@ function renderSample(payload) {
     metricRows.push(metricRow("latency ms", payload.metrics.latency_total_ms));
     metricRows.push(metricRow("slowest ms", payload.metrics.latency_slowest_ms));
     metricRows.push(metricRow("slowest op", payload.metrics.latency_slowest_op));
+  }
+  if (payload.metrics.csv_pred_l1 !== undefined) {
+    metricRows.push(metricRow("csv pred l1", payload.metrics.csv_pred_l1));
+  }
+  if (payload.metrics.csv_pred_rmse !== undefined) {
+    metricRows.push(metricRow("csv pred rmse", payload.metrics.csv_pred_rmse));
   }
   metricsEl.replaceChildren(...metricRows);
   renderPointCloud(payload.point_cloud);
@@ -75,10 +85,10 @@ const pointViews = {
 };
 
 const pointViewButtons = {
-  rgb: rgbViewBtn,
-  oblique: obliqueViewBtn,
-  top: topViewBtn,
-  bev: bevViewBtn,
+  [pointViews.rgb]: rgbViewBtn,
+  [pointViews.oblique]: obliqueViewBtn,
+  [pointViews.top]: topViewBtn,
+  [pointViews.bev]: bevViewBtn,
 };
 
 const plotlyCameras = {
@@ -106,19 +116,17 @@ let currentPointView = pointViews.rgb;
 let currentPointCloud = null;
 let plotlyReady = false;
 
+function setPointControlState(view) {
+  for (const [key, button] of Object.entries(pointViewButtons)) {
+    button.classList.toggle("active", key === view);
+  }
+}
+
 function applyPointView(view) {
   currentPointView = view;
   setPointControlState(view);
   if (!currentPointCloud) return;
-  if (window.Plotly && view === pointViews.bev) {
-    renderBevPlotly(currentPointCloud);
-    return;
-  }
-  if (window.Plotly && plotlyReady && view !== pointViews.free) {
-    Plotly.relayout("pointCloud", { "scene.camera": plotlyCameras[view] });
-    return;
-  }
-  drawPointCloudCanvas(currentPointCloud);
+  renderPointCloud(currentPointCloud);
 }
 
 function parseRgb(cssColor) {
@@ -253,27 +261,57 @@ function renderBevPlotly(pc) {
   plotlyReady = true;
 }
 
-function setPointControlState(view) {
-  for (const [key, button] of Object.entries(pointViewButtons)) {
-    button.classList.toggle("active", key === view);
-  }
-}
-
 function renderPointCloud(pc) {
   currentPointCloud = pc;
   setPointControlState(currentPointView);
   pointCount.textContent = `${pc.count} points`;
   if (window.Plotly) {
-    if (currentPointView === pointViews.bev) renderBevPlotly(pc);
-    else renderPointCloudPlotly(pc);
+    if (currentPointView === pointViews.bev) {
+      renderBevPlotly(pc);
+    } else {
+      renderPointCloudPlotly(pc);
+    }
   } else {
     drawPointCloudCanvas(pc);
   }
 }
 
+async function loadModels() {
+  const res = await fetch("/api/models");
+  const data = await res.json();
+  modelSelect.replaceChildren();
+  modelInfo = {};
+  for (const model of data.models) {
+    modelInfo[model.key] = model;
+    const opt = document.createElement("option");
+    opt.value = model.key;
+    opt.textContent = model.label;
+    modelSelect.appendChild(opt);
+  }
+  modelSelect.value = "completionformer";
+  updateModelStatus();
+}
+
+function updateModelStatus() {
+  const info = modelInfo[currentModel()];
+  if (!info) {
+    modelStatus.textContent = "";
+    runBtn.disabled = true;
+    return;
+  }
+  modelStatus.textContent = `${info.description}${info.can_run_board ? "" : " · precomputed board outputs"}`;
+  runBtn.disabled = !info.can_run_board;
+}
+
 async function loadSamples() {
+  updateModelStatus();
   const res = await fetch(`/api/samples?model=${encodeURIComponent(currentModel())}`);
   const data = await res.json();
+  if (!res.ok) {
+    setBusy("Model error");
+    alert(data.error);
+    return;
+  }
   sampleSelect.replaceChildren();
   for (const s of data.samples) {
     const opt = document.createElement("option");
@@ -299,8 +337,14 @@ async function loadCurrent() {
 
 async function runCurrent() {
   const idx = sampleSelect.value || "0";
+  const info = modelInfo[currentModel()];
+  if (info && !info.can_run_board) {
+    setBusy("Precomputed");
+    boardLog.textContent = `${info.label} does not package a single-sample live board runner in this app. Loaded outputs are the saved board val32 results.`;
+    return;
+  }
   setBusy("Running board");
-  logState.textContent = `sample ${idx}`;
+  logState.textContent = `${currentModel()} sample ${idx}`;
   boardLog.textContent = "Starting board pipeline...\nThis usually takes tens of seconds. Waiting for run_board_single_sample.sh to finish.";
   runBtn.disabled = true;
   try {
@@ -323,18 +367,6 @@ async function runCurrent() {
   }
 }
 
-async function loadModels() {
-  const res = await fetch("/api/models");
-  const data = await res.json();
-  modelSelect.replaceChildren();
-  for (const model of data.models) {
-    const opt = document.createElement("option");
-    opt.value = model.id;
-    opt.textContent = model.name;
-    modelSelect.appendChild(opt);
-  }
-}
-
 async function stageRgbd() {
   const res = await fetch("/api/upload-rgbd", { method: "POST" });
   const data = await res.json();
@@ -350,7 +382,6 @@ async function checkTof() {
 loadBtn.addEventListener("click", loadCurrent);
 runBtn.addEventListener("click", runCurrent);
 modelSelect.addEventListener("change", async () => {
-  setBusy("Switching model");
   await loadSamples();
   sampleSelect.value = "0";
   await loadCurrent();
@@ -362,7 +393,7 @@ obliqueViewBtn.addEventListener("click", () => applyPointView(pointViews.oblique
 topViewBtn.addEventListener("click", () => applyPointView(pointViews.top));
 bevViewBtn.addEventListener("click", () => applyPointView(pointViews.bev));
 
-loadModels().then(loadSamples).then(() => {
+loadModels().then(() => loadSamples()).then(() => {
   sampleSelect.value = "0";
   loadCurrent();
 });

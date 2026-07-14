@@ -6,6 +6,7 @@ Supported model views:
 
 - `CompletionFormer HW128`: ckpt00059 conv-only confidence-head board pipeline.
 - `CSPN ResNetTiny HW128`: stagewise scale-aware board pipeline with padded16 final depth head.
+- `NLSPN HW128`: split-dec5 scale-contract board outputs on NYU val32.
 
 ## Run
 
@@ -60,6 +61,13 @@ outputs/cspn_unified_input/inputs
 outputs/cspn_unified_input/board_outputs
 ```
 
+The NLSPN view defaults to the current AgentFlow output bundle:
+
+```text
+/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713/val32_features
+/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713/val32_fix_predinit_guidance_outfit_outputs
+```
+
 ## Board Run
 
 The `Run Board` button calls:
@@ -87,6 +95,12 @@ python3 cspn_resnettiny_hw128_w24_step8_board_runner_stagewise_v3_scaleaware.py 
   --use-scaled-fullsplit \
   --use-padded-depth-head
 ```
+
+The current web app enables live `Run Board` only for CompletionFormer, where a
+single-sample runner is packaged in this repository. CSPN and NLSPN are shown
+from saved board outputs by default; their board runners remain available in the
+AgentFlow/deployment artifact directories but are not wired as one-click app
+actions here.
 
 ## Interfaces
 
