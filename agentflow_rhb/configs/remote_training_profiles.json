@@ -1,0 +1,66 @@
+{
+  "default_ssh": {
+    "user": "root",
+    "host": "100.104.115.57",
+    "port": 2222,
+    "identity_file": "~/.ssh/id_ed25519",
+    "ssh_options": [
+      "-o", "IdentitiesOnly=yes",
+      "-o", "StrictHostKeyChecking=no"
+    ]
+  },
+  "profiles": {
+    "cspn_resnettiny_hw128_sample1x1": {
+      "description": "CSPN ResNetTiny hardware-aligned 128x128 model, Host sample + RHB 1x1 downsample variant.",
+      "remote_cwd": "/workspace/CSPN/cspn_pytorch",
+      "remote_stage_dir": "/workspace/CSPN/cspn_pytorch/agentflow_training/cspn_resnettiny_hw128_sample1x1",
+      "remote_output_dir": "/workspace/CSPN/cspn_pytorch/output/agentflow_cspn_resnettiny_hw128_sample1x1",
+      "local_fetch_dir": "/root/demo/artifacts/rhb_auto_config_framework/remote_ckpts/cspn_resnettiny_hw128_sample1x1",
+      "stage_files": [
+        {
+          "local": "/root/demo/artifacts/rhb_auto_config_framework/training/cspn_aligned_hw/train_cspn_aligned_hw.py",
+          "remote": "train_cspn_aligned_hw.py"
+        },
+        {
+          "local": "/root/demo/artifacts/rhb_auto_config_framework/training/cspn_aligned_hw/cspn_resnet_tiny_aligned_hw.py",
+          "remote": "cspn_resnet_tiny_aligned_hw.py"
+        },
+        {
+          "local": "/root/demo/artifacts/rhb_auto_config_framework/training/cspn_aligned_hw/cspn_aligned_hw.py",
+          "remote": "cspn_aligned_hw.py"
+        }
+      ],
+      "train_command": "python {remote_stage_dir}/train_cspn_aligned_hw.py --arch resnet_tiny --width 24 --cspn-step 8 --cspn-norm-type 8sum --down20-variant sample_1x1 --image-size 128 --epochs 80 --batch-size 24 --val-batch-size 8 --workers 8 --lr 3e-4 --scheduler-step 35 --scheduler-gamma 0.5 --n-sample 500 --subset 0 --val-subset 512 --data-parallel --save-dir {remote_output_dir}",
+      "ckpt_patterns": [
+        "best_model.pt",
+        "epoch_*.pt",
+        "metadata.json",
+        "log_train.txt"
+      ]
+    },
+    "nlspn_eccv20_hw128_resnet18": {
+      "description": "NLSPN ECCV20 compiler-aligned 128x128 model with ResNet18-style encoder and Host NLSPN propagation.",
+      "remote_cwd": "/workspace/CSPN/cspn_pytorch",
+      "remote_stage_dir": "/workspace/CSPN/cspn_pytorch/agentflow_training/nlspn_eccv20_hw128_resnet18",
+      "remote_output_dir": "/workspace/CSPN/cspn_pytorch/output/agentflow_nlspn_eccv20_hw128_resnet18",
+      "local_fetch_dir": "/root/demo/artifacts/rhb_auto_config_framework/remote_ckpts/nlspn_eccv20_hw128_resnet18",
+      "stage_files": [
+        {
+          "local": "/root/demo/artifacts/rhb_auto_config_framework/training/train_nlspn_hw_aligned.py",
+          "remote": "train_nlspn_hw_aligned.py"
+        },
+        {
+          "local": "/root/demo/models/nlspn_test",
+          "remote": "/workspace/CSPN/cspn_pytorch/"
+        }
+      ],
+      "train_command": "python {remote_stage_dir}/train_nlspn_hw_aligned.py --repo-root {remote_cwd} --data-root {remote_cwd} --train-list {remote_cwd}/datalist/nyudepth_hdf5_train.csv --eval-list {remote_cwd}/datalist/nyudepth_hdf5_val.csv --save-dir {remote_output_dir} --image-size 128 --epochs 80 --batch-size 12 --val-batch-size 8 --workers 8 --lr 3e-4 --scheduler-step 35 --scheduler-gamma 0.5 --n-sample 500 --subset 0 --val-subset 512 --data-parallel --prop-time 6 --preserve-input --pred-init-loss-weight 0.35",
+      "ckpt_patterns": [
+        "model_best.pt",
+        "model_latest.pt",
+        "metadata.json",
+        "log_train.txt"
+      ]
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "case_name": "cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample",
+  "model_family": "CSPN ResNetTiny HW128 aligned",
+  "input_shape": [1, 4, 128, 128],
+  "checkpoint": "/root/demo/artifacts/cspn_aligned_hw_ckpts/nyu_cspn_resnettiny_hw128_w24_step8_20260708_064340/best_model.pt",
+  "source_models_root": "/root/demo/models/cspn_test",
+  "deployment_package": "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample",
+  "app_runtime": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime",
+  "unified_input_source": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/data/nyu_val32_source_128x128.npz",
+  "unified_inputs": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/outputs/cspn_unified_input/inputs",
+  "board_outputs": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/outputs/cspn_unified_input/board_outputs",
+  "accepted_rhb_submodels": [
+    "stagewise stem/stage blocks exported as BCHW Conv submodels",
+    "Host-sampled downsample projections feeding RHB 1x1 Conv submodels",
+    "decoder/refine Conv submodels in cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample",
+    "padded16 final depth head candidate used by the current app demo"
+  ],
+  "host_ops": [
+    "RGBD input preparation from CompletionFormer NYU source",
+    "spatial sample/downsample before stride2 replacements",
+    "concat/add/residual/fan-out glue",
+    "scale-aware dequant/sum/requant between submodels",
+    "CSPN propagation and high-sensitivity tail handling where scheduled by runner",
+    "visualization and point-cloud/BEV generation"
+  ],
+  "forbidden_patterns": [
+    "internal Slice/Gather downsample inside RHB",
+    "multi-output RHB submodel",
+    "fakequant epoch004/QAT004 as deployment default",
+    "im2col stride-conv replacement as deployment default",
+    "runner-only scale applied to qscale=1 packer without compiled wrapper contract",
+    "run-repeat=2 as correctness fix for stale output"
+  ],
+  "board_metrics": {
+    "samples": 32,
+    "input_source_unified_with_completionformer": true,
+    "sample0_abs_mean": 0.13331472873687744,
+    "sample0_rmse": 0.16856734454631805,
+    "point_cloud_points": 16384
+  }
+}

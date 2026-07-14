@@ -14,6 +14,36 @@ It includes:
 
 It does not include the compiler, Model-Packer, or the full historical experiment tree.
 
+## AgentFlow RHB Framework
+
+The reusable Host/RHB deployment framework is included under:
+
+```text
+agentflow_rhb/
+```
+
+It packages the rule database and automation used to generalize the
+CompletionFormer deployment flow to CSPN and NLSPN:
+
+- ONNX graph import, annotation, layout risk analysis, and deep-search planning
+- exact compiler-aligned rewrite contracts such as IC/OC split and pad/slice
+- approximate rewrite policy that requires compiler-aligned retraining
+- software-side int8 outlier, saturation, kurtosis, and boundary-scale diagnostics
+- SSH remote training templates for CSPN/NLSPN aligned checkpoints
+- compile/CModel/Model-Packer/board-run wrappers for the lab environment
+
+Quick smoke commands:
+
+```bash
+python agentflow_rhb/rhb_auto_config/cli.py summarize-rules
+python agentflow_rhb/rhb_auto_config/cli.py production-plan \
+  --model nlspn_eccv20_hw128 \
+  --case agentflow_rhb/examples/nlspn_eccv20_compiler_aligned_case.json
+python agentflow_rhb/rhb_auto_config/cli.py remote-train \
+  --profile cspn_resnettiny_hw128_sample1x1 \
+  --action plan
+```
+
 ## Quick Test
 
 From inside this directory on the host:

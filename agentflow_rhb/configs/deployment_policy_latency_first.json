@@ -1,0 +1,51 @@
+{
+  "name": "latency_first_min_boundary",
+  "objective": [
+    "minimize_host_rhb_round_trips",
+    "minimize_latency",
+    "fallback_to_host_when_rhb_unsupported",
+    "maximize_end_to_end_deployability"
+  ],
+  "accuracy_tolerance": {
+    "final_output_abs_or_task_metric": [0.001, 0.01],
+    "requires_reference_check_for_approx": true
+  },
+  "calibration": {
+    "preferred_samples": 128,
+    "acceptable_samples": [64, 32]
+  },
+  "runtime_constraints": {
+    "force_single_output_rhb_submodels": true,
+    "max_submodels_per_inference": null,
+    "max_host_rhb_boundaries": null
+  },
+  "rewrite_policy": {
+    "GELU": "approx_relu_retrain_ok",
+    "ConvTranspose": "resize_conv_retrain_ok",
+    "Resize": "host_or_resize_conv_retrain_ok",
+    "Upsample": "host_or_resize_conv_retrain_ok",
+    "Sigmoid": "host_exact_preferred",
+    "Tanh": "host_or_approx_retrain_ok",
+    "Softmax": "host_or_probe",
+    "LayerNorm": "host_or_probe",
+    "CSPN_gate_norm": "host_exact_preferred",
+    "PredictionHead": "host_when_rhb_amplifies_error"
+  },
+  "score_weights": {
+    "rhb_node": 10.0,
+    "host_node_penalty": 3.0,
+    "boundary_penalty": 35.0,
+    "rhb_submodel_penalty": 4.0,
+    "multi_output_unsplit_penalty": 100.0,
+    "approx_rewrite_penalty": 10.0,
+    "approx_strategy_penalty": 8.0,
+    "estimated_latency_penalty": 1.0,
+    "packed_mb_penalty": 0.25
+  },
+  "notes": [
+    "Latency and fewer Host/RHB round trips are prioritized.",
+    "Approximate rewrites are allowed when retraining/reference validation keeps loss within 1e-3 to 1e-2.",
+    "RHB submodels must be single-output for the current board runtime.",
+    "Do not keep a final prediction head on RHB solely because it compiles; if the preceding feature tensor is accurate but the final output degrades, score a Host-head allocation."
+  ]
+}

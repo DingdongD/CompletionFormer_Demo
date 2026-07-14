@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+reports/
+work/
+remote_ckpts/
+*.onnx
+*.pt
+*.pth
+*.npz
+*.bin
+*.log
