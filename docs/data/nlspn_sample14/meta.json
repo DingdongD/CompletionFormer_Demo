@@ -1,0 +1,30 @@
+{
+  "id": "nlspn:14",
+  "index": 14,
+  "model": "nlspn",
+  "title": "NLSPN sample 14",
+  "base": "data/nlspn_sample14",
+  "images": {
+    "rgb": "rgb.png",
+    "sparse_depth": "sparse_depth.png",
+    "gt": "gt.png",
+    "ref_pred": "ref_pred.png",
+    "board_pred": "board_pred.png",
+    "abs_error": "abs_error.png"
+  },
+  "point_cloud": "point_cloud.json",
+  "metrics": {
+    "abs_mean": 0.08527825772762299,
+    "abs_p95": 0.2604505658149717,
+    "abs_max": 1.1773326396942139,
+    "rmse": 0.13626152276992798,
+    "ref_min": 1.5500719547271729,
+    "ref_max": 5.868808746337891,
+    "board_min": 1.5632243156433105,
+    "board_max": 6.026801109313965,
+    "board_init_min": 1.513340711593628,
+    "board_init_max": 6.3560309410095215
+  },
+  "source_npz": "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713/val32_features/sample_14.npz",
+  "board_npz": "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713/val32_fix_predinit_guidance_outfit_outputs/sample_14_fix_predinit_guidance_outfit.npz"
+}
