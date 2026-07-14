@@ -132,6 +132,47 @@ Evidence:
 /root/demo/artifacts/rhb_auto_config_framework/work/nlspn_board_final_sample0/nlspn_board_sample0_outputs_hostpost_heads_qdq_20260714.npz
 ```
 
+### Val32 Result
+
+The head-post candidate was then validated on all 32 representative validation samples.
+
+Compared with the accepted all-RHB head path:
+
+```text
+all-RHB head:
+  pred L1 mean   = 0.137466
+  pred RMSE mean = 0.195725
+
+Host post pred_init/guidance:
+  pred L1 mean   = 0.139500
+  pred RMSE mean = 0.199048
+  pred L1 max    = 0.196973
+```
+
+Latency with Host post:
+
+```text
+total_ms mean = 4695.159
+total_ms p50  = 4351.086
+total_ms p95  = 5624.328
+total_ms max  = 11444.663
+
+packer_load_total_ms mean = 1179.532
+packer_switch_first_run_ms mean = 596.060
+```
+
+The high max latency is caused by runtime outliers in full-resolution partial conv launches, not by the Host post itself. The fixed packer load and switch-first-run costs remain dominant cold-start overheads.
+
+Evidence:
+
+```text
+/root/demo/artifacts/rhb_auto_config_framework/reports/nlspn_val32_headpost_qdq_summary.csv
+/root/demo/artifacts/rhb_auto_config_framework/reports/nlspn_val32_headpost_qdq_logs/
+/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_val32_headpost_qdq_outputs/
+/root/demo/artifacts/visualizations/nlspn_val32_headpost_qdq/nlspn_val32_ref_board_error_contact_sheet.png
+/root/demo/artifacts/visualizations/nlspn_val32_headpost_qdq/nlspn_val32_first8_detailed_board_predictions.png
+```
+
 ## Current Recommendation
 
 For strict board-exact / near-exact NLSPN deployment:
@@ -139,5 +180,6 @@ For strict board-exact / near-exact NLSPN deployment:
 1. Keep 64-channel input chunks for 128x128 convs.
 2. Do not use full fused 128x128 conv submodels.
 3. Do not move BN/ReLU post blocks to Host without an effective affine calibration flow.
-4. Consider adopting Host post only for `pred_init` and `guidance` after val32 validation.
-5. Larger latency wins require a retrained compiler-aligned architecture that reduces the number of full-resolution 3x3 conv branches, not just larger exact subgraphs.
+4. For latency-first demos, adopt Host post only for `pred_init` and `guidance`; it saves two RHB launches with small val32 drift.
+5. For accuracy-first regression, keep the all-RHB head path as the reference.
+6. Larger latency wins require a retrained compiler-aligned architecture that reduces the number of full-resolution 3x3 conv branches, not just larger exact subgraphs.
