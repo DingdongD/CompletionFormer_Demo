@@ -200,6 +200,61 @@ figcaption {
   min-height: 260px;
   border: 1px solid #edf0f3;
   border-radius: 7px;
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+.pieSvgWrap svg {
+  width: 100%;
+  max-width: 220px;
+  display: block;
+}
+
+.pieCenterMain {
+  fill: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.pieCenterSub {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.pieLegend {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pieLegendRow {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.pieLegendRow span {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.pieLegendRow strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.pieLegendRow em {
+  color: var(--muted);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 .latencyTable { min-width: 0; }
@@ -306,6 +361,11 @@ figcaption {
   .imageGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .latencyBody { grid-template-columns: 1fr; }
   #pointCloud { height: 420px; }
+}
+
+@media (max-width: 720px) {
+  .latencyPie { grid-template-columns: 1fr; }
+  .pieSvgWrap svg { margin: 0 auto; }
 }
 
 @media (max-width: 560px) {

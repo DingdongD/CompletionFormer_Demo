@@ -84,6 +84,23 @@ function fmtMs(value) {
   return `${value.toFixed(1)} ms`;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function shortOpName(name) {
+  return name
+    .replace("nlspn_test.generated_ckpt.nlspn_ckpt_", "")
+    .replace("cspn_test.generated_ckpt.", "")
+    .replace("vit_patch_test.", "")
+    .replace("completionformer_", "");
+}
+
 function samplesForModel(modelId) {
   return manifest.samples.filter(s => (s.model || "completionformer") === modelId);
 }
@@ -109,6 +126,7 @@ function latencyCategory(name) {
     return "Host glue / transfer";
   }
   if (name.startsWith("sat_")) return "Quant/saturation checks";
+  if (name.includes("nlspn_test.generated_ckpt")) return "RHB compute / switch-mixed";
   if (name.endsWith("_rhb") || name.includes("scale_compensated") || name.includes("cspn_test.")) return "RHB compute";
   return "Other";
 }
@@ -136,6 +154,58 @@ function latencyBreakdown(metrics) {
   return { rows, topOps, total };
 }
 
+function operatorPieRows(topOps, total, limit = 10) {
+  const selected = topOps.slice(0, limit);
+  const used = selected.reduce((acc, [, value]) => acc + value, 0);
+  const rows = selected.map(([name, value]) => [shortOpName(name), value]);
+  if (total > used + 1) rows.push(["other ops / overhead", total - used]);
+  return rows;
+}
+
+function piePath(cx, cy, r, startAngle, endAngle) {
+  const startX = cx + r * Math.cos(startAngle);
+  const startY = cy + r * Math.sin(startAngle);
+  const endX = cx + r * Math.cos(endAngle);
+  const endY = cy + r * Math.sin(endAngle);
+  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArc} 1 ${endX} ${endY} Z`;
+}
+
+function renderOperatorPie(rows, total) {
+  const colors = ["#126e82", "#d6a84f", "#5865a9", "#6f8f72", "#9b5c5c", "#4c6f91", "#a06a2d", "#7e6ca8", "#508d8a", "#8a8f98", "#d8dde3"];
+  let angle = -Math.PI / 2;
+  const paths = [];
+  const legend = [];
+  rows.forEach(([name, value], index) => {
+    const slice = total > 0 ? (value / total) * Math.PI * 2 : 0;
+    const next = angle + slice;
+    const pct = total > 0 ? value / total * 100 : 0;
+    const color = colors[index % colors.length];
+    if (slice > 0.0001) {
+      paths.push(`<path d="${piePath(100, 100, 86, angle, next)}" fill="${color}"><title>${escapeHtml(name)} ${fmtMs(value)} ${pct.toFixed(1)}%</title></path>`);
+    }
+    legend.push(`
+      <div class="pieLegendRow">
+        <span style="background:${color}"></span>
+        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
+        <em>${fmtMs(value)} · ${pct.toFixed(1)}%</em>
+      </div>
+    `);
+    angle = next;
+  });
+  latencyPie.innerHTML = `
+    <div class="pieSvgWrap">
+      <svg viewBox="0 0 200 200" role="img" aria-label="Fine-grained operator latency pie">
+        ${paths.join("")}
+        <circle cx="100" cy="100" r="42" fill="#ffffff"></circle>
+        <text x="100" y="96" text-anchor="middle" class="pieCenterMain">${fmtMs(total)}</text>
+        <text x="100" y="115" text-anchor="middle" class="pieCenterSub">total</text>
+      </svg>
+    </div>
+    <div class="pieLegend">${legend.join("")}</div>
+  `;
+}
+
 function bottleneckText(modelId, breakdown, metrics) {
   if (!breakdown) {
     if (modelId === "nlspn") {
@@ -152,6 +222,10 @@ function bottleneckText(modelId, breakdown, metrics) {
     const slow = metrics.latency_slowest_op ? ` Slowest op: ${metrics.latency_slowest_op} (${fmtMs(metrics.latency_slowest_ms)}).` : "";
     return `Main bottleneck: full-resolution decoder/head RHB compute dominates (${pct.toFixed(1)}%).${slow} Host glue is comparatively small but still visible at resize/split boundaries.`;
   }
+  if (modelId === "nlspn") {
+    const slow = metrics.latency_slowest_op ? ` Slowest op: ${shortOpName(metrics.latency_slowest_op)} (${fmtMs(metrics.latency_slowest_ms)}).` : "";
+    return `Main bottleneck: many split decoder/head submodel launches. NLSPN logs mix model switch/load overhead into the first RUN after each switch, so the operator pie identifies the expensive launches rather than pure arithmetic only.${slow}`;
+  }
   return `Main bottleneck: ${topName} (${pct.toFixed(1)}% of the tracked end-to-end latency).`;
 }
 
@@ -167,39 +241,20 @@ function renderLatencyBreakdown(metrics, modelId) {
   }
 
   latencyTotal.textContent = `total ${fmtMs(breakdown.total)}`;
-  const labels = breakdown.rows.map(([name]) => name);
-  const values = breakdown.rows.map(([, value]) => value);
-  if (window.Plotly) {
-    Plotly.react("latencyPie", [{
-      type: "pie",
-      labels,
-      values,
-      hole: 0.42,
-      sort: false,
-      textinfo: "label+percent",
-      marker: { colors: ["#126e82", "#d6a84f", "#5865a9", "#7a8797", "#9ccfc1"] },
-    }], {
-      margin: { l: 8, r: 8, t: 8, b: 8 },
-      paper_bgcolor: "#ffffff",
-      showlegend: false,
-      font: { size: 11 },
-    }, { responsive: true, displayModeBar: false });
-  } else {
-    latencyPie.textContent = labels.map((label, i) => `${label}: ${fmtMs(values[i])}`).join("\n");
-  }
+  renderOperatorPie(operatorPieRows(breakdown.topOps, breakdown.total), breakdown.total);
 
   const categoryRows = breakdown.rows.map(([name, value]) => {
     const pct = breakdown.total > 0 ? value / breakdown.total * 100 : 0;
-    return `<tr><td>${name}</td><td>${fmtMs(value)}</td><td>${pct.toFixed(1)}%</td></tr>`;
+    return `<tr><td>${escapeHtml(name)}</td><td>${fmtMs(value)}</td><td>${pct.toFixed(1)}%</td></tr>`;
   }).join("");
   const opRows = breakdown.topOps.map(([name, value]) =>
-    `<tr><td title="${name}">${name}</td><td>${fmtMs(value)}</td><td></td></tr>`
+    `<tr><td title="${escapeHtml(name)}">${escapeHtml(shortOpName(name))}</td><td>${fmtMs(value)}</td><td></td></tr>`
   ).join("");
   latencyTable.innerHTML = `
+    <h3>Top Fine-Grained Ops</h3>
+    <table><tbody>${opRows}</tbody></table>
     <h3>Categories</h3>
     <table><tbody>${categoryRows}</tbody></table>
-    <h3>Top Ops</h3>
-    <table><tbody>${opRows}</tbody></table>
   `;
   latencyInsight.textContent = bottleneckText(modelId, breakdown, metrics);
 }

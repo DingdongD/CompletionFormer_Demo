@@ -100,7 +100,7 @@ The GitHub Pages demo and local viewer now expose the same comparison flow:
 
 - RGB, sparse depth, GT, reference prediction, board prediction, and absolute error maps
 - full-resolution point cloud with RGB, oblique, top, and BEV views
-- per-sample latency breakdown pie and top-op table when the runner packaged `LATENCY` markers
+- per-sample fine-grained top-operator latency pie and top-op table when the runner packaged `LATENCY` markers
 - model-level summary cards computed from the saved board outputs
 
 Current published sample summary from `docs/data/manifest.json`:
@@ -109,13 +109,13 @@ Current published sample summary from `docs/data/manifest.json`:
 | --- | ---: | ---: | ---: | --- | --- |
 | CompletionFormer HW128 | 15 | 0.0222 | 0.0550 | 1515.6 ms median / 1975.9 ms mean | RHB decoder/head compute 92.4%, Host glue 7.6% |
 | CSPN ResNetTiny HW128 | 32 | 0.1089 | 0.1479 | 16684.1 ms median / mean | Submodel load/switch 93.5%, RHB compute 4.7% |
-| NLSPN HW128 | 32 | 0.0779 | 0.1456 | not instrumented in static trace | Fine-grained runner latency still needs packaging |
+| NLSPN HW128 | 32 | 0.0779 | 0.1456 | 8817.4 ms median / 8750.8 ms mean | Split decoder/head launches; top dec5/dec4/dec3 launches include switch-mixed overhead |
 
 The bottleneck interpretation is:
 
 - CompletionFormer is numerically the strongest of the three packaged demos. Runtime is dominated by full-resolution decoder/head RHB conv blocks; the remaining Host cost comes from resize, split/sum glue, and boundary requantization.
 - CSPN is functionally packaged, but its current latency is dominated by repeated packer load/submodel switch overhead rather than arithmetic. The production direction is fewer RHB launches, persistent package reuse, and larger compiler-aligned fused blocks.
-- NLSPN has saved board/reference comparisons, but its latency trace was not packaged with per-op markers yet. Its next production step is to instrument the runner like CompletionFormer/CSPN, then separate Host propagation cost from RHB conv/head cost.
+- NLSPN now packages per-sample `LATENCY` markers from the split-decoder/head runner. The current log granularity mixes model switch/load overhead into the first `RUN` after each switch, so the fine-grained pie identifies expensive launches, while a lower-level runtime trace is still needed to split pure arithmetic from packer-switch cost.
 
 ## GitHub Pages Demo
 
@@ -133,7 +133,7 @@ Open:
 http://127.0.0.1:8091
 ```
 
-The static demo includes the current CompletionFormer, CSPN, and NLSPN saved board-output samples, depth/error maps, latency metrics where packaged, latency breakdown pie charts, and full `128x128 = 16384` point point-cloud data per sample. To publish it on GitHub, enable GitHub Pages from the repository `docs/` directory on this branch or after merging to `main`.
+The static demo includes the current CompletionFormer, CSPN, and NLSPN saved board-output samples, depth/error maps, latency metrics, fine-grained top-operator latency pie charts, and full `128x128 = 16384` point point-cloud data per sample. To publish it on GitHub, enable GitHub Pages from the repository `docs/` directory on this branch or after merging to `main`.
 
 ## Web Viewer
 
