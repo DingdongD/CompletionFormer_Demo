@@ -123,7 +123,7 @@ pred mean_abs vs ref 0.136143
 pred rmse vs ref     0.174810
 ```
 
-Conclusion: `pred_init` and `guidance` bias post can be moved to Host with negligible output drift on sample0. This removes two RHB launches. It should be validated on val32 before becoming the default runner path.
+Conclusion: `pred_init` and `guidance` bias post can be moved to Host with small output drift on sample0. This removes two RHB launches, but it changes the execution contract, so it is an optional latency experiment only. It must not become the default path for strict semantic deployment.
 
 Evidence:
 
@@ -134,7 +134,7 @@ Evidence:
 
 ### Val32 Result
 
-The head-post candidate was then validated on all 32 representative validation samples.
+The head-post candidate was then validated on all 32 representative validation samples. It remains a latency experiment because the all-RHB head path is the strict semantic reference.
 
 Compared with the accepted all-RHB head path:
 
@@ -180,9 +180,15 @@ For strict board-exact / near-exact NLSPN deployment:
 1. Keep 64-channel input chunks for 128x128 convs.
 2. Do not use full fused 128x128 conv submodels.
 3. Do not move BN/ReLU post blocks to Host without an effective affine calibration flow.
-4. For latency-first demos, adopt Host post only for `pred_init` and `guidance`; it saves two RHB launches with small val32 drift.
-5. For accuracy-first regression, keep the all-RHB head path as the reference.
+4. Keep `pred_init` and `guidance` post-bias/post-bias-ReLU on RHB for the default runner. This preserves the compiler-aligned execution semantics.
+5. Host post for `pred_init` and `guidance` is allowed only when a latency-first experiment explicitly accepts the measured val32 drift.
 6. Larger latency wins require a retrained compiler-aligned architecture that reduces the number of full-resolution 3x3 conv branches, not just larger exact subgraphs.
+
+Default strict val32 entrypoint:
+
+```text
+/root/demo/artifacts/rhb_auto_config_framework/scripts/run_nlspn_val32_strict_board.sh
+```
 
 ## Rejected Alternate Bundle: dec5 / dec4+rest
 

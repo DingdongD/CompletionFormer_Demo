@@ -29,9 +29,15 @@ Current three-model deployment reports:
 
 - `docs/subgraph_load_reduction_status.md`: CompletionFormer/CSPN/NLSPN bundle partition status, accepted packers, and rejected candidates.
 - `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
-- `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes and val32 Host-post results.
+- `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes, strict all-RHB head default, and optional Host-post latency experiment.
 
-NLSPN head-post validation entrypoint on the lab machine:
+NLSPN strict semantic validation entrypoint on the lab machine:
+
+```bash
+LIMIT=32 artifacts/rhb_auto_config_framework/scripts/run_nlspn_val32_strict_board.sh
+```
+
+The Host-post runner remains available only as an explicit latency experiment:
 
 ```bash
 LIMIT=32 artifacts/rhb_auto_config_framework/scripts/run_nlspn_val32_headpost_board.sh

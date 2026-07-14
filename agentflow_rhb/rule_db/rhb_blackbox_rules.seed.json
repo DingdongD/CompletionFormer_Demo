@@ -642,10 +642,10 @@
       "pattern": "full-resolution head bias/ReLU post blocks after exact 64-channel RHB partial conv sums",
       "compile_status": "n/a",
       "board_status": "validated_on_val32_with_small_output_drift",
-      "decision": "accept_for_latency_first_optional_default",
-      "action": "pred_init and guidance bias post may be moved to Host NumPy to remove two RHB launches in latency-first NLSPN deployment. Keep dec2/id_dec1/gd_dec1/cf_dec1 BN/ReLU post blocks on RHB unless an effective affine calibration flow is implemented. For accuracy-first comparisons keep the all-RHB head path as the reference.",
+      "decision": "optional_latency_experiment_not_strict_default",
+      "action": "strict semantic deployment must keep pred_init and guidance post_bias/post_bias_relu on RHB. pred_init and guidance bias post may only be moved to Host NumPy for an explicitly requested latency-first experiment, because it removes two RHB launches with small but measurable drift. Keep dec2/id_dec1/gd_dec1/cf_dec1 BN/ReLU post blocks on RHB unless an effective affine calibration flow is implemented.",
       "evidence": "NLSPN val32 2026-07-14: accepted all-RHB head path had pred L1 mean=0.137466, RMSE mean=0.195725. Host post for pred_init/guidance had pred L1 mean=0.139500, RMSE mean=0.199048, so the drift is about +0.0020 L1 and +0.0033 RMSE. Sample0 latency dropped from 4388.236 ms to 4018.124 ms; val32 head-post p50 latency was 4351.086 ms, with p95=5624.328 ms and max=11444.663 ms due to runtime outliers unrelated to the head-post operation.",
-      "risk": "low accuracy risk for latency-first demos; medium benchmarking risk unless runtime outliers and packer switch first-run penalties are reported separately"
+      "risk": "low but nonzero accuracy drift if enabled; unacceptable for strict semantic runs unless explicitly approved"
     },
     {
       "id": "latency.model_packer.load_model_acceptance_gate",
