@@ -37,12 +37,6 @@ NLSPN strict semantic validation entrypoint on the lab machine:
 LIMIT=32 artifacts/rhb_auto_config_framework/scripts/run_nlspn_val32_strict_board.sh
 ```
 
-The Host-post runner remains available only as an explicit latency experiment:
-
-```bash
-LIMIT=32 artifacts/rhb_auto_config_framework/scripts/run_nlspn_val32_headpost_board.sh
-```
-
 The framework is designed for a black-box accelerator flow:
 
 - compiler/runtime cannot be modified
