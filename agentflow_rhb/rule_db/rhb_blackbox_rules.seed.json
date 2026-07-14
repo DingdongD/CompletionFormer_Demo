@@ -657,6 +657,39 @@
       "action": "after packing a new bundle partition, run a board smoke test that times ac_driver.load_model before treating the bundle as accepted. Reject or quarantine bundles that do not return from load_model promptly, even if params_wei offset and file size are within nominal limits.",
       "evidence": "NLSPN 2026-07-14 alternate partition packer_nlspn_final_dec4_rest_20260714 had 53 submodels and params_wei=5772 lines, under the nominal 8192-line offset limit. In a sample0 probe, the pipeline completed packer_nlspn_final_dec5 then stalled while switching to dec4+rest; no LOAD_MODEL completion line was printed after more than 3 minutes. The accepted partition remains dec5+dec4/rest.",
       "risk": "high if skipped; the allocator may select a nominally valid resident bundle that blocks the runtime before inference starts"
+    },
+    {
+      "id": "dyspn.resize.host_glue_before_rhb_conv",
+      "kind": "operator_rewrite",
+      "pattern": "DySPN / NLSPN / decoder graph contains Resize nearest before Conv/BN/ReLU",
+      "compile_status": "full graph may export but compile/cmodel fails when Resize remains inside RHB submodel",
+      "board_status": "not accepted as part of strict RHB submodel unless a fresh board proof exists",
+      "decision": "split_resize_to_host",
+      "action": "keep resize in Host glue and export the following Conv/BN/ReLU as an RHB candidate. This is exact for the compiler-aligned resize+conv architecture, but not exact for a pretrained ConvTranspose2d reference unless the HW architecture is trained/fine-tuned.",
+      "evidence": "DySPN 2026-07-14: dyspn_test.dyspn_hw_guide ONNX export succeeded, but full guide compile/cmodel failed at Resize with log: Resize mode not supported: nearest. The region plan splits decoder Resize nodes to Host and Conv/BN/ReLU nodes to RHB.",
+      "risk": "high if ignored; full guide graph will not produce a runnable CModel/board package"
+    },
+    {
+      "id": "dyspn.grid_sample.propagation.host_default",
+      "kind": "operator_allocation",
+      "pattern": "DySPN propagation uses grid_sample, softmax, sigmoid, slice/narrow, iterative update",
+      "compile_status": "not treated as RHB-safe in current black-box rule set",
+      "board_status": "Host fallback required until exact board support is proven",
+      "decision": "allocate_propagation_to_host",
+      "action": "send guide/offset-aff Conv candidates to RHB, then perform softmax/sigmoid/grid_sample propagation on Host. Do not rewrite to fixed-shift propagation unless explicitly choosing a retrain-required approximate model.",
+      "evidence": "DySPN source profile 2026-07-14 flags grid/sample-adjacent softmax/sigmoid/chunk/narrow operations in DySPN/module.py. The added DySPN HW runner keeps propagation on Host and validates the offset_aff Conv separately.",
+      "risk": "high if forced to RHB; unsupported sampling or nonlinear normalization can silently change propagation semantics"
+    },
+    {
+      "id": "dyspn.offset_aff.zero_init.quantizer_probe",
+      "kind": "export_validation",
+      "pattern": "DySPN conv_offset_aff is all-zero before training checkpoint load",
+      "compile_status": "cv_onnx quantization can fail with zero activation range",
+      "board_status": "use nonzero compile probe only for shape validation; strict trained model must use checkpoint weights",
+      "decision": "separate_compile_probe_from_strict_model",
+      "action": "do not mutate the strict DySPN model to avoid zero-range export. Use dyspn_hw_offset_aff_compile_probe only as a no-checkpoint compile smoke test; use dyspn_hw_offset_aff with DYSPN_HW_CKPT for real deployment.",
+      "evidence": "DySPN 2026-07-14: strict dyspn_hw_offset_aff failed cv_onnx because all-zero output produced infinite output scale. dyspn_hw_offset_aff_compile_probe compiled, packed, and passed board All same=True.",
+      "risk": "medium; accepting the probe as a semantic model would hide the need for trained DySPN HW weights"
     }
   ]
 }

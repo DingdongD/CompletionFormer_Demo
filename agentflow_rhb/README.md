@@ -16,6 +16,8 @@ python agentflow_rhb/rhb_auto_config/cli.py summarize-rules
 python agentflow_rhb/rhb_auto_config/cli.py production-plan \
   --model cspn_hw128 \
   --case agentflow_rhb/examples/cspn_hw128_current_success_case.json
+python agentflow_rhb/rhb_auto_config/cli.py plan \
+  --case agentflow_rhb/examples/dyspn_hw128_probe.json
 python agentflow_rhb/rhb_auto_config/cli.py remote-train \
   --profile nlspn_eccv20_hw128_resnet18 \
   --action plan
@@ -30,6 +32,7 @@ Current three-model deployment reports:
 - `docs/subgraph_load_reduction_status.md`: CompletionFormer/CSPN/NLSPN bundle partition status, accepted packers, and rejected candidates.
 - `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
 - `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes, strict all-RHB head default, and optional Host-post latency experiment.
+- `docs/dyspn_hw128_adaptation.md`: DySPN HW128 compiler-aligned scaffold, NYU Depth V2 adapter, and first RHB board probe.
 
 NLSPN strict semantic validation entrypoint on the lab machine:
 
@@ -70,6 +73,7 @@ python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py scan-models --
 python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py plan --case artifacts/rhb_auto_config_framework/examples/completionformer_hw128_case.json
 python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py plan --case artifacts/rhb_auto_config_framework/examples/cspn_hw128_current_success_case.json
 python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py plan --case artifacts/rhb_auto_config_framework/examples/nlspn_eccv20_compiler_aligned_case.json
+python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py plan --case artifacts/rhb_auto_config_framework/examples/dyspn_hw128_probe.json
 ```
 
 Closed-loop adapters:

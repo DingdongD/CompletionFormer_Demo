@@ -1,0 +1,21 @@
+{
+  "case_name": "dyspn_hw128_probe",
+  "model_family": "DySPN",
+  "input_shape": [
+    1,
+    3,
+    128,
+    128
+  ],
+  "source_root": "/root/demo/DySPN",
+  "onnx_glob": "",
+  "checkpoint": "",
+  "representative_data": "",
+  "deployment_goal": "maximize board-pass RHB subgraphs while preserving exact Host fallback for risky glue",
+  "notes": [
+    "Run profile-source first to identify high-risk operators in the reference code.",
+    "Run score-onnx-dir if probe/exported ONNX files already exist.",
+    "Use optimize-onnx --export-submodels for each candidate full/subgraph ONNX.",
+    "Only promote rules after board pass; CModel pass alone is not sufficient."
+  ]
+}
