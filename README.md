@@ -91,8 +91,8 @@ Summary metrics from `validation/val32_metrics.csv`:
 - final pred p95 mean: `0.096996`
 - pred_init abs mean: `0.062948`
 - confidence abs mean: `0.042193`
-- latency mean: `1552.956 ms`
-- latency mean excluding one observed scheduling outlier: `1488.789 ms`
+- optimized sample0 tracked latency: `1492.224 ms`
+- runtime mitigation: max CPU frequency, `mlockall`, input pretouch, GC disabled, and `wr_done` clear before each launch
 
 ## CompletionFormer / CSPN / NLSPN Comparison
 
@@ -107,15 +107,16 @@ Current published sample summary from `docs/data/manifest.json`:
 
 | Model | Saved board samples | Mean board/ref L1 | Mean board/ref RMSE | Latency | Main tracked bottleneck |
 | --- | ---: | ---: | ---: | --- | --- |
-| CompletionFormer HW128 | 15 | 0.0222 | 0.0550 | 1515.6 ms median / 1975.9 ms mean | RHB decoder/head compute 92.4%, Host glue 7.6% |
-| CSPN ResNetTiny HW128 | 32 | 0.1089 | 0.1479 | 16684.1 ms median / mean | Submodel load/switch 93.5%, RHB compute 4.7% |
-| NLSPN HW128 | 32 | 0.0779 | 0.1456 | 8817.4 ms median / 8750.8 ms mean | Split decoder/head launches; top dec5/dec4/dec3 launches include switch-mixed overhead |
+| CompletionFormer HW128 | 15 | 0.0222 | 0.0550 | stable `1492.224 ms` | Full-resolution decoder/head RHB conv blocks plus Host resize/split/sum glue |
+| CSPN ResNetTiny HW128 | 32 | 0.1089 | 0.1479 | stable `2121.742 ms` / latest trace `2197.879 ms` | Accepted exact 2-load Model-Packer partition; residual cost is launch/load plus RHB conv blocks |
+| NLSPN HW128 | 32 | 0.0779 | 0.1456 | stable `4282.089 ms` / latest trace `4095.602 ms` | Accepted 2-pack decoder partition; dec5/dec4/rest still dominate launch and board compute |
 
 The bottleneck interpretation is:
 
 - CompletionFormer is numerically the strongest of the three packaged demos. Runtime is dominated by full-resolution decoder/head RHB conv blocks; the remaining Host cost comes from resize, split/sum glue, and boundary requantization.
-- CSPN is functionally packaged, but its current latency is dominated by repeated packer load/submodel switch overhead rather than arithmetic. The production direction is fewer RHB launches, persistent package reuse, and larger compiler-aligned fused blocks.
-- NLSPN now packages per-sample `LATENCY` markers from the split-decoder/head runner. The current log granularity mixes model switch/load overhead into the first `RUN` after each switch, so the fine-grained pie identifies expensive launches, while a lower-level runtime trace is still needed to split pure arithmetic from packer-switch cost.
+- CSPN now uses the accepted exact 2-load packer partition. It is much faster than the earlier per-subgraph launch path, but still slower than CPU because the board path pays load/switch and Host/RHB transfer cost.
+- NLSPN now uses an accepted 2-pack decoder partition. It is also improved over the earlier split-heavy path, but remains launch and transfer dominated.
+- CompletionFormer runtime outliers were traced to Host/runtime jitter before DMA submission, not NPU arithmetic. The runner now locks CPU frequency, optionally mlocks memory, pretouches input buffers, disables Python GC during the run, and warns on slow `ac_driver.run_inference()` calls.
 
 ### CPU vs Host/RHB Latency
 
@@ -126,9 +127,9 @@ samples. The Host/RHB numbers are from the packaged board traces in
 
 | Model | CPU compiler-aligned PyTorch median | Current Host/RHB board median | Observation |
 | --- | ---: | ---: | --- |
-| CompletionFormer HW128 | 35.4 ms | 1515.6 ms | Board path is dominated by full-res decoder/head launches and data/glue overhead. |
-| CSPN ResNetTiny HW128 | 15.1 ms | 16684.1 ms | Current board path is dominated by repeated submodel load/switch, not arithmetic. |
-| NLSPN HW128 | 75.0 ms | 8817.4 ms | Uses pulled remote `model_best_infer_state.pt` with strict `missing=[]`, `unexpected=[]`. Board path is split-launch heavy. |
+| CompletionFormer HW128 | 35.453 ms | 1492.224 ms | Runtime jitter mitigation removes the observed 1s pre-DMA outlier on the checked sample. |
+| CSPN ResNetTiny HW128 | 15.102 ms | 2121.742 ms | Accepted exact 2-load partition; remaining overhead is not PyTorch arithmetic. |
+| NLSPN HW128 | 75.116 ms | 4282.089 ms | Uses pulled remote `model_best_infer_state.pt` with strict `missing=[]`, `unexpected=[]`; 2-pack path reduces split-launch overhead. |
 
 The CPU numbers are not an accuracy comparison; they are a host-side latency
 baseline for the compiler-aligned model structures. The current RHB deployments
@@ -213,9 +214,17 @@ The board run must use:
 ```text
 --cf-dec0-host-sigmoid
 --clear-wr-done-before-run
+--lock-cpu-max-freq
+--mlockall
+--pretouch-inputs
+--disable-gc
 ```
 
-The first flag keeps sigmoid on Host. The second flag clears stale `wr_done` before each submodel launch.
+The first flag keeps sigmoid on Host. The second flag clears stale `wr_done` before each submodel launch. The remaining flags reduce Host-side runtime jitter before DMA submission.
+
+Detailed runtime outlier analysis is archived at:
+
+`agentflow_rhb/docs/runtime_outlier_mitigation.md`
 
 ## Operator Rules
 

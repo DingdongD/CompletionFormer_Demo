@@ -279,13 +279,17 @@ function renderModelSummary() {
     const avgAbs = mean(samples.map(s => s.metrics?.abs_mean));
     const avgRmse = mean(samples.map(s => s.metrics?.rmse));
     const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
+    const stableLatency = typeof model.stable_latency_ms === "number" ? model.stable_latency_ms : avgLatency;
+    const cpuMean = typeof model.cpu_mean_ms === "number" ? model.cpu_mean_ms : undefined;
+    const speed = stableLatency && cpuMean ? `${(stableLatency / cpuMean).toFixed(1)}x CPU` : "CPU n/a";
     const card = document.createElement("div");
     card.className = "modelCard";
     card.innerHTML = `
       <strong>${model.name}</strong>
       <span>${samples.length} board samples</span>
       <span>L1 ${fmt(avgAbs, 4)} / RMSE ${fmt(avgRmse, 4)}</span>
-      <span>lat ${avgLatency === undefined ? "n/a" : fmtMs(avgLatency)}</span>
+      <span>stable lat ${stableLatency === undefined ? "n/a" : fmtMs(stableLatency)} · ${speed}</span>
+      <span>${escapeHtml(model.latency_label || "sample trace mean")} </span>
       <span>${aggregateBottleneck(samples)}</span>
     `;
     return card;
@@ -500,7 +504,9 @@ function renderSampleOptions() {
     sampleSelect.appendChild(opt);
   }
   const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
-  const latencyText = avgLatency === undefined ? "latency trace n/a" : `avg ${fmtMs(avgLatency)}`;
+  const model = (manifest.models || []).find(m => m.id === currentModel()) || {};
+  const stableLatency = typeof model.stable_latency_ms === "number" ? model.stable_latency_ms : avgLatency;
+  const latencyText = stableLatency === undefined ? "latency trace n/a" : `stable ${fmtMs(stableLatency)}`;
   runtimeInfo.textContent = `${samples.length} saved board outputs, ${latencyText}, ${manifest.point_cloud_sampling}`;
 }
 

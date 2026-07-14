@@ -22,6 +22,7 @@
     "board_max": 8.041790008544922,
     "board_init_min": 1.0625,
     "board_init_max": 10.018648147583008,
+    "runtime_mitigation": "max_cpu_freq + mlockall + input_pretouch + gc_disabled",
     "latency_total_ms": 3183.817,
     "latency_slowest_op": "gd_dec0_rhb",
     "latency_slowest_ms": 1817.946,

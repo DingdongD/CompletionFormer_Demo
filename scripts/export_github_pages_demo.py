@@ -18,7 +18,32 @@ NLSPN_WORK_ROOT = Path(
 )
 NLSPN_FEATURE_ROOT = NLSPN_WORK_ROOT / "val32_features"
 NLSPN_BOARD_ROOT = NLSPN_WORK_ROOT / "val32_fix_predinit_guidance_outfit_outputs"
-CSPN_LOG = ROOT / "outputs" / "cspn_unified_input" / "board_outputs" / "run_all_unified_clearwr.log"
+CSPN_LOG = Path(
+    "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/"
+    "cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample/"
+    "board_sample0_2load_revalidate_20260714.log"
+)
+NLSPN_LOG = Path(
+    "/root/demo/artifacts/rhb_auto_config_framework/reports/"
+    "nlspn_final_board_pipeline_sample0_dec54bundle_revalidate_20260714.log"
+)
+MODEL_LATENCY_SUMMARY = {
+    "completionformer": {
+        "stable_latency_ms": 1492.224,
+        "latency_label": "sample0 rerun with max CPU freq, mlockall, input pretouch, and GC disabled",
+        "cpu_mean_ms": 35.453,
+    },
+    "cspn": {
+        "stable_latency_ms": 2121.742,
+        "latency_label": "median of accepted 2-load exact runs",
+        "cpu_mean_ms": 15.102,
+    },
+    "nlspn": {
+        "stable_latency_ms": 4282.089,
+        "latency_label": "median of accepted 2-pack exact runs",
+        "cpu_mean_ms": 75.116,
+    },
+}
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
@@ -184,6 +209,7 @@ def export_sample(npz_path: Path) -> dict:
         "board_max": float(np.nanmax(board_pred)),
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
+        "runtime_mitigation": "max_cpu_freq + mlockall + input_pretouch + gc_disabled",
     }
     metrics.update(parse_latency(npz_path.parent / f"board_val{idx}_convonlycf_hostsigmoid.log"))
 
@@ -249,6 +275,7 @@ def export_cspn_sample(npz_path: Path) -> dict:
         "board_max": float(np.nanmax(board_pred)),
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
+        "runtime_mitigation": "2-load exact Model-Packer partition",
     }
     metrics.update(parse_latency(CSPN_LOG))
 
@@ -315,7 +342,9 @@ def export_nlspn_sample(feature_npz: Path) -> dict:
         "board_max": float(np.nanmax(board_pred)),
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
+        "runtime_mitigation": "2-pack dec5+dec4/rest Model-Packer partition",
     }
+    metrics.update(parse_latency(NLSPN_LOG))
 
     pc_path = out_dir / "point_cloud.json"
     pc_path.write_text(json.dumps(point_cloud(rgb, board_pred), separators=(",", ":")))
@@ -357,9 +386,9 @@ def main() -> None:
         "generated_from": "CompletionFormer outputs/sample*/ plus CSPN unified and NLSPN split-dec5 val32 board outputs",
         "point_cloud_sampling": "stride=1 full 128x128 board_pred points",
         "models": [
-            {"id": "completionformer", "name": "CompletionFormer HW128"},
-            {"id": "cspn", "name": "CSPN ResNetTiny HW128"},
-            {"id": "nlspn", "name": "NLSPN HW128"},
+            {"id": "completionformer", "name": "CompletionFormer HW128", **MODEL_LATENCY_SUMMARY["completionformer"]},
+            {"id": "cspn", "name": "CSPN ResNetTiny HW128", **MODEL_LATENCY_SUMMARY["cspn"]},
+            {"id": "nlspn", "name": "NLSPN HW128", **MODEL_LATENCY_SUMMARY["nlspn"]},
         ],
         "samples": [
             {

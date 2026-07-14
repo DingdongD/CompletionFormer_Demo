@@ -536,6 +536,50 @@
       "action": "use AgentFlow remote-train profiles to stage code, launch nohup training over SSH, monitor logs, and fetch checkpoints; after fetch, fresh-export ONNX and rebuild compile/cmodel/packer before any board accuracy claim",
       "evidence": "CSPN and NLSPN aligned models are trained on the remote CSPN workspace via ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -p 2222 root@100.104.115.57; stale ONNX/package artifacts previously caused false quantization diagnoses",
       "risk": "high if ckpt, ONNX, and packer are not tied together"
+    },
+    {
+      "id": "latency.bundle.max_board_exact_partition",
+      "kind": "runtime_latency",
+      "pattern": "multiple validated RHB submodels scheduled by one runner",
+      "compile_status": "pack_multi_may_pass",
+      "board_status": "requires_npz_equivalence",
+      "decision": "search_largest_board_exact_partition",
+      "action": "after individual submodels pass board validation, first probe all-in-one only to discover pack/load/offset limits; then search the largest board-exact partition with real runner outputs. Compare debug npz tensors against the accepted baseline when the baseline is trusted, or against reference outputs when the previous board baseline is known to be stale-state polluted. Reject any faster package that changes checked tensors.",
+      "evidence": "2026-07-14 three-model sweep: CSPN all-in-one reduced wall latency to 2099.005 ms but changed depth_float/s2_float, so the accepted board-exact partition remains 2-load at 2608.920 ms vs 17147.321 ms baseline. CompletionFormer ckpt00059 already uses one 14-submodel packer and reran at 1481.980 ms tracked latency, so no further load-count gain exists. NLSPN all-in-one 89-submodel pack failed at params_wei offset 8232 out of 13-bit field range; dec5+dec4 62-submodel pack ended at 8160 lines, ran as a 2-pack pipeline, reduced tracked latency 5692.214 -> 4468.575 ms, and improved pred mean_abs vs ref 1.286738 -> 0.136143 by avoiding previous packer-switch state pollution.",
+      "risk": "high if pack/load success is accepted without tensor/ref comparison or offset headroom checks"
+    },
+    {
+      "id": "packer.params_wei_offset.13bit_headroom",
+      "kind": "runtime_latency",
+      "pattern": "Model-Packer multi-submodel bundle accumulating params_wei offsets",
+      "compile_status": "pack_fails_when_offset_overflows",
+      "board_status": "not_reached_on_overflow",
+      "decision": "cap_bundle_before_offset_overflow",
+      "action": "during bundle search, reject candidate packers whose generated params_wei offset would exceed the instruction field range; keep practical headroom below the observed failing offset 8232 lines and prefer validated packages at or below 8160 lines unless future hardware/runtime evidence expands the limit",
+      "evidence": "NLSPN 2026-07-14: 89-submodel all-in-one failed in Model-Packer with Value 8232 out of range for bits 298:286. dec5+dec4 62-submodel pack succeeded with last submodel offset 8144 and total params_wei lines 8160.",
+      "risk": "high if ignored; packer may fail or generate invalid instructions"
+    },
+    {
+      "id": "latency.reporting.robust_outlier_filter",
+      "kind": "runtime_latency",
+      "pattern": "board latency benchmark or CPU-vs-RHB comparison",
+      "compile_status": "n/a",
+      "board_status": "n/a",
+      "decision": "require",
+      "action": "report median or outlier-filtered mean as the primary latency; exclude runtime spikes from headline CPU-vs-RHB ratios; always list excluded samples/runs with the slow stage or rejection reason. Use at least 3 repeats/samples when possible, and never use a single spike caused by status polling, DMA/cache synchronization, or submodel-switch state as the main latency number.",
+      "evidence": "CompletionFormer val32 had a stable median around 1486.7 ms but a sample31 spike at 3542.147 ms; a later single rerun had dec4_rhb spike to 1019.741 ms and total 2492.185 ms while normal dec4_rhb is about 7-10 ms. Current stable report excludes these outliers and uses CompletionFormer 1486.807 ms, CSPN 2121.742 ms, and NLSPN 4282.089 ms.",
+      "risk": "medium if ignored; latency comparisons become dominated by board/runtime jitter instead of model allocation quality"
+    },
+    {
+      "id": "latency.runtime.pre_dma_jitter_mitigation",
+      "kind": "runtime_latency",
+      "pattern": "run_inference latency spike where driver log stalls between 'Running inference/Sending inputs' and 'Sending data to accelerator'",
+      "compile_status": "n/a",
+      "board_status": "board_output_valid_but_latency_spikes",
+      "decision": "require",
+      "action": "before board benchmark/inference, clear wr_done before every submodel, set CPU frequency to max, and call mlockall when running as root. Keep CPU affinity and SCHED_FIFO as explicit debug options only, because they can reduce one spike while slowing full-resolution transfer/head stages.",
+      "evidence": "CompletionFormer 2026-07-14 dec4 outlier stalled about 1013 ms before DMA send; wr_done loops and sta_npu_opt_cnt were normal after send. Full stabilization with CPU3 affinity/SCHED_FIFO removed the dec4 spike but increased total latency to 2028.318 ms. Preferred mitigation --lock-cpu-max-freq --mlockall gave dec4_rhb=7.570 ms and total=1492.605 ms.",
+      "risk": "medium if skipped; runtime jitter can be misdiagnosed as model/packer latency"
     }
   ]
 }

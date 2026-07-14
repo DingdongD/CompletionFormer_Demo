@@ -36,7 +36,11 @@ sshpass -p "$BOARD_PASS" ssh -o StrictHostKeyChecking=no "$BOARD" \
     --feature-npz '$BOARD_WORK/$(basename "$FEATURE_NPZ")' \
     --save-npz '$BOARD_WORK/$(basename "$BOARD_NPZ")' \
     --cf-dec0-host-sigmoid \
-    --clear-wr-done-before-run" | tee "$BOARD_LOG"
+    --clear-wr-done-before-run \
+    --lock-cpu-max-freq \
+    --mlockall \
+    --pretouch-inputs \
+    --disable-gc" | tee "$BOARD_LOG"
 
 sshpass -p "$BOARD_PASS" scp -o StrictHostKeyChecking=no "$BOARD:$BOARD_WORK/$(basename "$BOARD_NPZ")" "$BOARD_NPZ"
 

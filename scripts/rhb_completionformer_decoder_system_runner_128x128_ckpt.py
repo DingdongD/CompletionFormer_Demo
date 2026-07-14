@@ -1,5 +1,7 @@
 import argparse
+import ctypes
 import csv
+import gc
 import mmap
 import os
 import os.path as osp
@@ -17,10 +19,14 @@ BARRIER_DEC6_FLOAT = None
 USE_SECOND_RUN = False
 SECOND_RUN_MODE = "none"
 CLEAR_WR_DONE_BEFORE_RUN = False
+PRETOUCH_INPUTS = False
+RUN_INFERENCE_WARN_MS = 250.0
 PL_MM = None
 PL_FD = None
 PL_BASE = 0x800E0000
 PL_MAP_SIZE = 0x10000
+MCL_CURRENT = 1
+MCL_FUTURE = 2
 
 
 DEC6 = "completionformer_test.decoder_tiny_dec6_resize_conv_basicblock_nocbam_4x4_to_8x8_ckpt"
@@ -100,6 +106,67 @@ def timed(label, fn, stats):
     return out
 
 
+def set_cpu_affinity(spec):
+    if not spec:
+        return
+    cpus = {int(x) for x in spec.split(",") if x.strip()}
+    if not cpus:
+        return
+    try:
+        os.sched_setaffinity(0, cpus)
+        print("RUNTIME_AFFINITY:", sorted(os.sched_getaffinity(0)))
+    except Exception as exc:
+        print("RUNTIME_AFFINITY_FAILED:", repr(exc))
+
+
+def set_realtime_priority(priority):
+    if priority <= 0:
+        return
+    try:
+        os.sched_setscheduler(0, os.SCHED_FIFO, os.sched_param(priority))
+        print("RUNTIME_SCHED_FIFO:", priority)
+    except Exception as exc:
+        print("RUNTIME_SCHED_FIFO_FAILED:", repr(exc))
+
+
+def lock_memory():
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        rc = libc.mlockall(MCL_CURRENT | MCL_FUTURE)
+        if rc == 0:
+            print("RUNTIME_MLOCKALL: True")
+        else:
+            err = ctypes.get_errno()
+            print("RUNTIME_MLOCKALL_FAILED:", err, os.strerror(err))
+    except Exception as exc:
+        print("RUNTIME_MLOCKALL_FAILED:", repr(exc))
+
+
+def set_cpu_max_freq():
+    base = "/sys/devices/system/cpu/cpu0/cpufreq"
+    max_path = osp.join(base, "cpuinfo_max_freq")
+    set_path = osp.join(base, "scaling_setspeed")
+    try:
+        with open(max_path) as f:
+            max_freq = f.read().strip()
+        with open(set_path, "w") as f:
+            f.write(max_freq)
+        with open(osp.join(base, "scaling_cur_freq")) as f:
+            cur_freq = f.read().strip()
+        print("RUNTIME_CPU_FREQ:", cur_freq)
+    except Exception as exc:
+        print("RUNTIME_CPU_FREQ_FAILED:", repr(exc))
+
+
+def stabilize_runtime(args):
+    if args.lock_cpu_max_freq:
+        set_cpu_max_freq()
+    set_cpu_affinity(args.cpu_affinity)
+    set_realtime_priority(args.realtime_priority)
+    if args.mlockall:
+        lock_memory()
+
+
 def saturate_int8(x):
     return np.clip(x, -128, 127).astype(np.int8)
 
@@ -112,6 +179,20 @@ def quant_input(x_float, input_scale):
     return saturate_int8(np.rint(x_float.astype(np.float32) * np.float32(input_scale)))
 
 
+def pretouch_array(x):
+    arr = np.ascontiguousarray(x)
+    if not PRETOUCH_INPUTS:
+        return arr
+    flat = arr.reshape(-1)
+    if flat.size:
+        # Touch one byte per 4 KiB page plus the last byte so Linux has faulted
+        # and pinned the pages before ac_driver enters its DMA send path.
+        step = 4096
+        _ = int(np.asarray(flat[::step], dtype=np.int8).sum())
+        _ = int(flat[-1])
+    return arr
+
+
 def sigmoid_float(x):
     x = np.clip(x.astype(np.float32), -80.0, 80.0)
     return (1.0 / (1.0 + np.exp(-x))).astype(np.float32)
@@ -121,7 +202,7 @@ def run_scaled(sub_model_name, input_float):
     if ENABLE_DEC6_BARRIER and sub_model_name != DEC6 and BARRIER_DEC6_FLOAT is not None:
         barrier_feed = quant_input(BARRIER_DEC6_FLOAT, INPUT_SCALES[DEC6])
         ac_driver.run_inference([barrier_feed], sub_model_name=DEC6)
-    feed = quant_input(input_float, INPUT_SCALES[sub_model_name])
+    feed = pretouch_array(quant_input(input_float, INPUT_SCALES[sub_model_name]))
     second_models = {
         DEC4,
         DEC3,
@@ -144,7 +225,11 @@ def run_scaled(sub_model_name, input_float):
         ac_driver.run_inference([feed], sub_model_name=sub_model_name)
         if CLEAR_WR_DONE_BEFORE_RUN:
             clear_wr_done()
+    run_start = time.perf_counter()
     raw = ac_driver.run_inference([feed], sub_model_name=sub_model_name).astype(np.int8)
+    run_elapsed = (time.perf_counter() - run_start) * 1000.0
+    if run_elapsed > RUN_INFERENCE_WARN_MS:
+        print(f"RUNTIME_RUN_INFERENCE_SLOW {sub_model_name} {run_elapsed:.3f} ms")
     y_float = dequant_output(raw, OUTPUT_SCALES[sub_model_name])
     return raw, y_float
 
@@ -292,7 +377,32 @@ def main():
     parser.add_argument("--second-run-mode", choices=["none", "from-dec4"], default="none")
     parser.add_argument("--clear-wr-done-before-run", action="store_true", help="Clear stale PL wr_done with PL[0x00]=0x100 before every run_inference.")
     parser.add_argument("--cf-dec0-host-sigmoid", action="store_true", help="Run cf_dec0 Conv on RHB and apply sigmoid on Host.")
+    parser.add_argument("--stabilize-runtime", action="store_true", help="Enable runtime jitter mitigations: max CPU freq, CPU3 affinity, SCHED_FIFO priority 20, and mlockall.")
+    parser.add_argument("--lock-cpu-max-freq", action="store_true", help="Set cpu0 scaling_setspeed to cpuinfo_max_freq before running.")
+    parser.add_argument("--cpu-affinity", default="", help="Comma-separated CPU list for this runner process, e.g. 3.")
+    parser.add_argument("--realtime-priority", type=int, default=0, help="Set SCHED_FIFO priority for this runner process. Requires root.")
+    parser.add_argument("--mlockall", action="store_true", help="Call mlockall(MCL_CURRENT|MCL_FUTURE) to reduce page-fault jitter.")
+    parser.add_argument("--pretouch-inputs", action="store_true", help="Make input arrays contiguous and touch one byte per page before ac_driver.run_inference.")
+    parser.add_argument("--disable-gc", action="store_true", help="Disable Python GC during the board pipeline.")
+    parser.add_argument("--run-inference-warn-ms", type=float, default=250.0, help="Print RUNTIME_RUN_INFERENCE_SLOW when one ac_driver.run_inference call exceeds this threshold.")
     args = parser.parse_args()
+
+    if args.stabilize_runtime:
+        args.lock_cpu_max_freq = True
+        args.cpu_affinity = args.cpu_affinity or "3"
+        args.realtime_priority = args.realtime_priority or 20
+        args.mlockall = True
+        args.pretouch_inputs = True
+        args.disable_gc = True
+    stabilize_runtime(args)
+    global PRETOUCH_INPUTS, RUN_INFERENCE_WARN_MS
+    PRETOUCH_INPUTS = bool(args.pretouch_inputs)
+    RUN_INFERENCE_WARN_MS = float(args.run_inference_warn_ms)
+    if PRETOUCH_INPUTS:
+        print("RUNTIME_PRETOUCH_INPUTS: True")
+    if args.disable_gc:
+        gc.disable()
+        print("RUNTIME_GC_DISABLED: True")
 
     ac_driver.set_log_level("info")
     ac_driver.init_accelerator()
