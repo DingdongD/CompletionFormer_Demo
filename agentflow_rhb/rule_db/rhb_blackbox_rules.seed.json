@@ -646,6 +646,17 @@
       "action": "pred_init and guidance bias post may be moved to Host NumPy to remove two RHB launches in latency-first NLSPN deployment. Keep dec2/id_dec1/gd_dec1/cf_dec1 BN/ReLU post blocks on RHB unless an effective affine calibration flow is implemented. For accuracy-first comparisons keep the all-RHB head path as the reference.",
       "evidence": "NLSPN val32 2026-07-14: accepted all-RHB head path had pred L1 mean=0.137466, RMSE mean=0.195725. Host post for pred_init/guidance had pred L1 mean=0.139500, RMSE mean=0.199048, so the drift is about +0.0020 L1 and +0.0033 RMSE. Sample0 latency dropped from 4388.236 ms to 4018.124 ms; val32 head-post p50 latency was 4351.086 ms, with p95=5624.328 ms and max=11444.663 ms due to runtime outliers unrelated to the head-post operation.",
       "risk": "low accuracy risk for latency-first demos; medium benchmarking risk unless runtime outliers and packer switch first-run penalties are reported separately"
+    },
+    {
+      "id": "latency.model_packer.load_model_acceptance_gate",
+      "kind": "runtime_latency",
+      "pattern": "candidate bundle is within params_wei/packed-size budget but contains many submodels or a different stage grouping",
+      "compile_status": "pack succeeds",
+      "board_status": "load_model may hang or fail before any submodel run",
+      "decision": "require_board_load_model_probe",
+      "action": "after packing a new bundle partition, run a board smoke test that times ac_driver.load_model before treating the bundle as accepted. Reject or quarantine bundles that do not return from load_model promptly, even if params_wei offset and file size are within nominal limits.",
+      "evidence": "NLSPN 2026-07-14 alternate partition packer_nlspn_final_dec4_rest_20260714 had 53 submodels and params_wei=5772 lines, under the nominal 8192-line offset limit. In a sample0 probe, the pipeline completed packer_nlspn_final_dec5 then stalled while switching to dec4+rest; no LOAD_MODEL completion line was printed after more than 3 minutes. The accepted partition remains dec5+dec4/rest.",
+      "risk": "high if skipped; the allocator may select a nominally valid resident bundle that blocks the runtime before inference starts"
     }
   ]
 }

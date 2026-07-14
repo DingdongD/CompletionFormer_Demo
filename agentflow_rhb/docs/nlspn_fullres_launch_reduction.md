@@ -183,3 +183,44 @@ For strict board-exact / near-exact NLSPN deployment:
 4. For latency-first demos, adopt Host post only for `pred_init` and `guidance`; it saves two RHB launches with small val32 drift.
 5. For accuracy-first regression, keep the all-RHB head path as the reference.
 6. Larger latency wins require a retrained compiler-aligned architecture that reduces the number of full-resolution 3x3 conv branches, not just larger exact subgraphs.
+
+## Rejected Alternate Bundle: dec5 / dec4+rest
+
+A second 2-pack partition was tested after the val32 run:
+
+```text
+packer_nlspn_final_dec5
+packer_nlspn_final_dec4_rest_20260714
+```
+
+`dec4+rest` packed successfully:
+
+```text
+submodels   = 53
+params_wei  = 5772 lines
+```
+
+This is under the nominal 13-bit / 8192-line `params_wei` offset limit, but the board run was not usable. On sample0, the runner completed `dec5`, then stalled while switching to `packer_nlspn_final_dec4_rest_20260714`; the log never reached:
+
+```text
+LOAD_MODEL packer_nlspn_final_dec4_rest_20260714
+```
+
+The remote board process was killed after more than 3 minutes. Therefore the accepted NLSPN partition remains:
+
+```text
+packer_nlspn_final_dec5_dec4_20260714
+packer_nlspn_final_rest
+```
+
+The failed packer was moved to:
+
+```text
+/root/demo/artifacts/rhb_auto_config_framework/work/failed_packer_probes/packer_nlspn_final_dec4_rest_20260714
+```
+
+Evidence:
+
+```text
+/root/demo/artifacts/rhb_auto_config_framework/reports/nlspn_sample00_dec5_dec4rest_headpost_20260714.log
+```
