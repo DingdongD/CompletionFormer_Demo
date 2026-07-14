@@ -117,6 +117,26 @@ The bottleneck interpretation is:
 - CSPN is functionally packaged, but its current latency is dominated by repeated packer load/submodel switch overhead rather than arithmetic. The production direction is fewer RHB launches, persistent package reuse, and larger compiler-aligned fused blocks.
 - NLSPN now packages per-sample `LATENCY` markers from the split-decoder/head runner. The current log granularity mixes model switch/load overhead into the first `RUN` after each switch, so the fine-grained pie identifies expensive launches, while a lower-level runtime trace is still needed to split pure arithmetic from packer-switch cost.
 
+### CPU vs Host/RHB Latency
+
+CPU baselines were measured on this host with PyTorch eval/no-grad, batch=1,
+`128x128` NYU val inputs, 4 CPU threads, 2 warmup samples, and 5 measured
+samples. The Host/RHB numbers are from the packaged board traces in
+`docs/data/manifest.json`.
+
+| Model | CPU compiler-aligned PyTorch median | Current Host/RHB board median | Observation |
+| --- | ---: | ---: | --- |
+| CompletionFormer HW128 | 35.4 ms | 1515.6 ms | Board path is dominated by full-res decoder/head launches and data/glue overhead. |
+| CSPN ResNetTiny HW128 | 15.1 ms | 16684.1 ms | Current board path is dominated by repeated submodel load/switch, not arithmetic. |
+| NLSPN HW128 | 77.7 ms topology-only | 8817.4 ms | Full trained NLSPN ckpt was not present locally; topology CPU timing uses the same compiler-aligned model with random weights. Board path is split-launch heavy. |
+
+The CPU numbers are not an accuracy comparison; they are a host-side latency
+baseline for the compiler-aligned model structures. The current RHB deployments
+are useful for validating board-compatible scheduling, quantization contracts,
+and visual output, but their latency is dominated by launch granularity and
+runtime/model-switch overhead. The main optimization target is therefore larger
+RHB subgraphs, persistent model loading, and fewer Host/RHB round trips.
+
 ## GitHub Pages Demo
 
 A static GitHub Pages demo is available under `docs/`. It uses saved RHBLite board outputs and does not require Python, SSH, or board access.

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RHB Depth Board Viewer</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=operator-pie-visible-20260714">
 </head>
 <body>
   <aside class="sidebar">
@@ -61,15 +61,6 @@
       <div id="runStatus" class="runStatus">Idle</div>
     </header>
 
-    <section class="imageGrid">
-      <figure><img id="rgbImg"><figcaption>rgb</figcaption></figure>
-      <figure><img id="sparseImg"><figcaption>sparse depth</figcaption></figure>
-      <figure><img id="gtImg"><figcaption>gt</figcaption></figure>
-      <figure><img id="refImg"><figcaption>ref pred</figcaption></figure>
-      <figure><img id="boardImg"><figcaption>board pred</figcaption></figure>
-      <figure><img id="errImg"><figcaption>abs error</figcaption></figure>
-    </section>
-
     <section class="latencySection">
       <div class="sectionTitle">
         <h2>Latency Breakdown</h2>
@@ -80,6 +71,15 @@
         <div id="latencyTable" class="latencyTable"></div>
       </div>
       <p id="latencyInsight" class="latencyInsight"></p>
+    </section>
+
+    <section class="imageGrid">
+      <figure><img id="rgbImg"><figcaption>rgb</figcaption></figure>
+      <figure><img id="sparseImg"><figcaption>sparse depth</figcaption></figure>
+      <figure><img id="gtImg"><figcaption>gt</figcaption></figure>
+      <figure><img id="refImg"><figcaption>ref pred</figcaption></figure>
+      <figure><img id="boardImg"><figcaption>board pred</figcaption></figure>
+      <figure><img id="errImg"><figcaption>abs error</figcaption></figure>
     </section>
 
     <section class="pointSection">
@@ -105,6 +105,6 @@
     </section>
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=operator-pie-visible-20260714"></script>
 </body>
 </html>

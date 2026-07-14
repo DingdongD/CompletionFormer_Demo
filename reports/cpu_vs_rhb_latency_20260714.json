@@ -1,0 +1,56 @@
+{
+  "device": "cpu",
+  "torch_num_threads": 4,
+  "input": "NYU val 128x128, batch=1",
+  "samples_requested": 5,
+  "completionformer_hw128": {
+    "samples": 5,
+    "mean_ms": 35.45272834599018,
+    "median_ms": 35.369700752198696,
+    "min_ms": 35.00049188733101,
+    "max_ms": 36.34268511086702,
+    "p95_ms": 36.14967744797468,
+    "raw_ms": [
+      35.377646796405315,
+      36.34268511086702,
+      35.00049188733101,
+      35.17311718314886,
+      35.369700752198696
+    ],
+    "status": "ok",
+    "wall_setup_plus_measure_ms": 266.73959800973535
+  },
+  "cspn_resnettiny_hw128": {
+    "samples": 5,
+    "mean_ms": 15.102214086800814,
+    "median_ms": 15.06127417087555,
+    "min_ms": 15.017000958323479,
+    "max_ms": 15.314019285142422,
+    "p95_ms": 15.26737604290247,
+    "raw_ms": [
+      15.06127417087555,
+      15.314019285142422,
+      15.080803073942661,
+      15.017000958323479,
+      15.037972945719957
+    ],
+    "status": "ok",
+    "wall_setup_plus_measure_ms": 139.51423671096563
+  },
+  "nlspn_hw128_topology_random_weights": {
+    "status": "ok_topology_only_no_ckpt_found",
+    "samples": 5,
+    "mean_ms": 79.15072478353977,
+    "median_ms": 77.68111303448677,
+    "min_ms": 72.2787780687213,
+    "max_ms": 88.70540512725711,
+    "raw_ms": [
+      83.50725471973419,
+      73.5810729674995,
+      77.68111303448677,
+      88.70540512725711,
+      72.2787780687213
+    ],
+    "note": "Full trained NLSPN HW checkpoint was not found locally; this measures the same compiler-aligned topology on CPU with random weights."
+  }
+}
