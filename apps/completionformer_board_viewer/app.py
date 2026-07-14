@@ -429,16 +429,18 @@ def list_samples(model_key=None) -> dict:
 
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
-        if self.path == "/" or self.path.startswith("/static/"):
+        clean_path = urlparse(self.path).path
+        if clean_path == "/" or clean_path.startswith("/static/"):
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
             self.send_header("Pragma", "no-cache")
         super().end_headers()
 
     def translate_path(self, path: str) -> str:
-        if path == "/" or path.startswith("/static/"):
-            if path == "/":
+        clean_path = urlparse(path).path
+        if clean_path == "/" or clean_path.startswith("/static/"):
+            if clean_path == "/":
                 return str(STATIC_DIR / "index.html")
-            return str(APP_DIR / path.lstrip("/"))
+            return str(APP_DIR / clean_path.lstrip("/"))
         return str(STATIC_DIR / "index.html")
 
     def do_GET(self):
