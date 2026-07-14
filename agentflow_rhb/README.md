@@ -25,6 +25,11 @@ The original `/root/demo/artifacts/rhb_auto_config_framework/...` commands
 below are preserved for the lab machine where the full generated workspace
 exists.
 
+Current three-model deployment reports:
+
+- `docs/subgraph_load_reduction_status.md`: CompletionFormer/CSPN/NLSPN bundle partition status, accepted packers, and rejected candidates.
+- `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
+
 The framework is designed for a black-box accelerator flow:
 
 - compiler/runtime cannot be modified

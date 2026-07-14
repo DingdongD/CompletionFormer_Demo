@@ -138,6 +138,11 @@ and visual output, but their latency is dominated by launch granularity and
 runtime/model-switch overhead. The main optimization target is therefore larger
 RHB subgraphs, persistent model loading, and fewer Host/RHB round trips.
 
+Additional deployment and latency notes:
+
+- `agentflow_rhb/docs/subgraph_load_reduction_status.md`: accepted Model-Packer bundle partitions and rejected all-in-one cases.
+- `agentflow_rhb/docs/inference_only_latency_breakdown.md`: load, first-run-after-switch, and steady inference accounting for the three packaged models.
+
 NLSPN checkpoint pullback and strict-load details are recorded in:
 
 ```text

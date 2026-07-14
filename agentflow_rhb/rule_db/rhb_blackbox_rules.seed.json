@@ -580,6 +580,50 @@
       "action": "before board benchmark/inference, clear wr_done before every submodel, set CPU frequency to max, and call mlockall when running as root. Keep CPU affinity and SCHED_FIFO as explicit debug options only, because they can reduce one spike while slowing full-resolution transfer/head stages.",
       "evidence": "CompletionFormer 2026-07-14 dec4 outlier stalled about 1013 ms before DMA send; wr_done loops and sta_npu_opt_cnt were normal after send. Full stabilization with CPU3 affinity/SCHED_FIFO removed the dec4 spike but increased total latency to 2028.318 ms. Preferred mitigation --lock-cpu-max-freq --mlockall gave dec4_rhb=7.570 ms and total=1492.605 ms.",
       "risk": "medium if skipped; runtime jitter can be misdiagnosed as model/packer latency"
+    },
+    {
+      "id": "latency.model_packer.max_exact_resident_bundle",
+      "kind": "runtime_latency",
+      "pattern": "pipeline contains multiple RHB submodels currently dispatched through separate packer directories",
+      "compile_status": "candidate bundles must pack successfully and remain within instruction offset fields",
+      "board_status": "candidate bundles must be board-exact against accepted baseline debug tensors or ref outputs",
+      "decision": "prefer_largest_board_exact_resident_bundle",
+      "action": "during allocation, greedily search the largest Model-Packer bundles that keep all required RHB submodels resident. Generate a submodel-to-packer map, cache the currently loaded packer in the board runner, and call ac_driver.load_model only when the next submodel maps to a different packer. Reject all-in-one candidates that either overflow params_wei offsets or pass load/run but change intermediate tensors.",
+      "evidence": "2026-07-14: vp_test_ok batch runner proves one load plus repeated run_inference works. CompletionFormer already uses one 14-submodel packer. CSPN exact 2-load bundle reduced wall latency from 17147.321 ms to 2608.920 ms, but all-in-one was not board-exact. NLSPN 2-pack dec5+dec4/rest reduced tracked latency from 5692.214 ms to 4468.575/4095.602 ms; all-in-one failed at params_wei offset 8232.",
+      "risk": "high if skipped; per-subgraph load_model can dominate latency by hundreds of milliseconds per package switch"
+    },
+    {
+      "id": "latency.model_packer.cspn_allinone_drift_guard",
+      "kind": "runtime_latency",
+      "pattern": "CSPN or SPN pipeline candidate tries to merge many compiler-aligned conv submodels into one Model-Packer package",
+      "compile_status": "package may fit under 8MB and may load successfully",
+      "board_status": "must compare intermediate debug tensors against accepted baseline; load/run success is insufficient",
+      "decision": "reject_large_bundle_if_first_boundary_drifts",
+      "action": "for each all-in-one or very large bundle candidate, run a board bisect using saved intermediate tensors. If the first tensor after the newly loaded bundle drifts, split the package before that boundary and prefer the largest previously board-exact partition. Do not accept warmup-after-load as a correctness fix unless it makes every debug tensor exact against the baseline.",
+      "evidence": "CSPN 2026-07-14: accepted 2-load partition packer_cspn_stem_backbone_16pack_20260714 + packer_cspn_decoder_heads_15pack_20260714 is exact. all31 exactstem package is within nominal capacity and stem config/offset matches the 16-pack, but board output drifts immediately at s1_i8 (max_abs=33, mean_abs=1.53657, nz=57.038%). no-stem 30-pack drifts at s2_float. A load-after-warmup first run with unit scales still drifts at s1_i8, so the root cause is large bundle/global packer/runtime state, not decoder accumulation or scale contract.",
+      "risk": "high if ignored; a package can appear faster by removing load_model calls while silently changing model outputs from the first RHB boundary"
+    },
+    {
+      "id": "latency.model_packer.nlspn_offset_guard_partition",
+      "kind": "runtime_latency",
+      "pattern": "NLSPN or large SPN pipeline all-in-one Model-Packer candidate exceeds instruction field offset limits",
+      "compile_status": "all-in-one pack may fail before board run when params_wei offset field overflows",
+      "board_status": "use 2-pack or 3-pack exact partition if all-in-one cannot be encoded",
+      "decision": "partition_by_params_wei_offset_then_latency",
+      "action": "before invoking board validation, estimate cumulative params_wei lines from each candidate pack. Reject candidates above the observed safe offset headroom and search contiguous 2-pack/3-pack partitions that keep each bundle below the field limit. Prefer fewer package switches only among partitions that pack and pass board-exact validation.",
+      "evidence": "NLSPN 2026-07-14: all-in-one 89-submodel package failed with Value 8232 out of range for bits 298:286. The accepted dec5+dec4 package has params_wei lines=8160 and the rest package has params_wei lines=2284. This indicates an instruction encoding/packer offset limit independent of the nominal 8MB binary size.",
+      "risk": "high if ignored; automatic bundling can select an unencodable all-in-one package or waste time on candidates that cannot pass Model-Packer"
+    },
+    {
+      "id": "latency.runtime.packer_switch_first_run_accounting",
+      "kind": "runtime_latency",
+      "pattern": "runner switches from one resident Model-Packer package to another during a single inference frame",
+      "compile_status": "n/a",
+      "board_status": "board_output_valid_but_first_run_after_switch_may_absorb_runtime_state_cost",
+      "decision": "measure_and_report_separately",
+      "action": "time ac_driver.load_model separately, mark the first run_inference after every package switch, and report PACKER_LOAD_SUMMARY plus PACKER_SWITCH_FIRST_RUN_SUMMARY. Do not attribute the first-run-after-switch spike to the submodel operator when selecting split size or deciding whether a conv is intrinsically slow. For cold-start latency include both load and first-run switch cost; for resident streaming latency report steady-state submodel medians separately.",
+      "evidence": "NLSPN 2026-07-14 profiled 2-pack run: packer_nlspn_final_rest load_model took 552.188 ms, and the immediately following dec3_partial_oc0_64_ic0_64 was 595.722 ms while the remaining dec3 partials were 43.6-44.7 ms. The output stayed aligned to ref with pred mean_abs=0.136143, so this is a runtime/package-switch accounting issue, not a dec3 conv complexity issue.",
+      "risk": "high if ignored; the allocator will overfit around a fake slow operator and may choose worse partitions"
     }
   ]
 }
