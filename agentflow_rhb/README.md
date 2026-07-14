@@ -29,6 +29,7 @@ Current three-model deployment reports:
 
 - `docs/subgraph_load_reduction_status.md`: CompletionFormer/CSPN/NLSPN bundle partition status, accepted packers, and rejected candidates.
 - `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
+- `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes and Host-post candidate results.
 
 The framework is designed for a black-box accelerator flow:
 

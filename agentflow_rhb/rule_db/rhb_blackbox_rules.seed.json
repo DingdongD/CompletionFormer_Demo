@@ -624,6 +624,28 @@
       "action": "time ac_driver.load_model separately, mark the first run_inference after every package switch, and report PACKER_LOAD_SUMMARY plus PACKER_SWITCH_FIRST_RUN_SUMMARY. Do not attribute the first-run-after-switch spike to the submodel operator when selecting split size or deciding whether a conv is intrinsically slow. For cold-start latency include both load and first-run switch cost; for resident streaming latency report steady-state submodel medians separately.",
       "evidence": "NLSPN 2026-07-14 profiled 2-pack run: packer_nlspn_final_rest load_model took 552.188 ms, and the immediately following dec3_partial_oc0_64_ic0_64 was 595.722 ms while the remaining dec3 partials were 43.6-44.7 ms. The output stayed aligned to ref with pred mean_abs=0.136143, so this is a runtime/package-switch accounting issue, not a dec3 conv complexity issue.",
       "risk": "high if ignored; the allocator will overfit around a fake slow operator and may choose worse partitions"
+    },
+    {
+      "id": "conv.fullres128.input_channel_chunk64_exact_ceiling",
+      "kind": "board_exactness",
+      "pattern": "128x128 Conv2d with large input channel count in SPN decoder/head blocks",
+      "compile_status": "full or 128-channel candidates may compile and pass CModel",
+      "board_status": "board output can drift even without timeout",
+      "decision": "cap_exact_input_chunk_at_64",
+      "action": "for strict board-exact deployment, split 128x128 convs into input-channel chunks no larger than 64. Reject full Conv/Conv+BN+ReLU and 128-channel input chunk candidates unless a fresh board validation proves exactness on the target runtime. Do not infer board support from CModel success.",
+      "evidence": "NLSPN 2026-07-14: dec2/id_dec1/gd_dec1/cf_dec1 full Conv+BN+ReLU, pred_init full Conv+ReLU, guidance full Conv, and six 128-channel partial candidates all exported, compiled, passed CModel, packed, and then failed board All same. Existing 64-channel partials remain board-exact.",
+      "risk": "high if ignored; the allocator will reduce launch count by choosing larger subgraphs that silently change outputs"
+    },
+    {
+      "id": "latency.host_post.head_bias_only_candidate",
+      "kind": "runtime_latency",
+      "pattern": "full-resolution head bias/ReLU post blocks after exact 64-channel RHB partial conv sums",
+      "compile_status": "n/a",
+      "board_status": "candidate requires full validation set comparison before acceptance",
+      "decision": "candidate_after_val32",
+      "action": "pred_init and guidance bias post may be moved to Host NumPy to remove two RHB launches, but BN/ReLU post blocks should stay on RHB unless effective affine calibration is implemented. Validate on val32 before making Host head post the default.",
+      "evidence": "NLSPN sample0 2026-07-14: moving pred_init and guidance post to Host gave pred mean_abs=0.136192 vs accepted baseline 0.136143 with LATENCY_TOTAL_MS=4018.124. Moving dec2/id_dec1/gd_dec1/cf_dec1 BN/ReLU post to Host caused large drift: pred mean_abs 0.709279-0.730331.",
+      "risk": "medium if accepted without val32; small sample0 drift may not hold across the dataset"
     }
   ]
 }
