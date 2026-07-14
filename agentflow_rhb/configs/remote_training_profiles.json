@@ -61,6 +61,30 @@
         "metadata.json",
         "log_train.txt"
       ]
+    },
+    "dyspn_hw128_resnet18": {
+      "description": "DySPN compiler-aligned 128x128 model with ResNet18-style encoder, Host resize glue, RHB Conv candidates, and Host grid_sample propagation.",
+      "remote_cwd": "/workspace/CSPN/cspn_pytorch",
+      "remote_stage_dir": "/workspace/CSPN/cspn_pytorch/agentflow_training/dyspn_hw128_resnet18",
+      "remote_output_dir": "/workspace/CSPN/cspn_pytorch/output/agentflow_dyspn_hw128_resnet18",
+      "local_fetch_dir": "/root/demo/artifacts/rhb_auto_config_framework/remote_ckpts/dyspn_hw128_resnet18",
+      "stage_files": [
+        {
+          "local": "/root/demo/artifacts/rhb_auto_config_framework/training/train_dyspn_hw_aligned.py",
+          "remote": "train_dyspn_hw_aligned.py"
+        },
+        {
+          "local": "/root/demo/models/dyspn_test",
+          "remote": "/workspace/CSPN/cspn_pytorch/models/"
+        }
+      ],
+      "train_command": "python {remote_stage_dir}/train_dyspn_hw_aligned.py --repo-root {remote_cwd} --data-root {remote_cwd} --train-list {remote_cwd}/datalist/nyudepth_hdf5_train.csv --eval-list {remote_cwd}/datalist/nyudepth_hdf5_val.csv --save-dir {remote_output_dir} --image-size 128 --epochs 80 --batch-size 8 --val-batch-size 8 --workers 8 --lr 3e-4 --scheduler-step 35 --scheduler-gamma 0.5 --n-sample 500 --subset 0 --val-subset 512 --data-parallel --iteration 6 --num-neighbor 5 --network resnet18 --pred-init-loss-weight 0.35",
+      "ckpt_patterns": [
+        "model_best.pt",
+        "model_latest.pt",
+        "metadata.json",
+        "log_train.txt"
+      ]
     }
   }
 }

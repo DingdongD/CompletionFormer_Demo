@@ -21,6 +21,9 @@ python agentflow_rhb/rhb_auto_config/cli.py plan \
 python agentflow_rhb/rhb_auto_config/cli.py remote-train \
   --profile nlspn_eccv20_hw128_resnet18 \
   --action plan
+python agentflow_rhb/rhb_auto_config/cli.py remote-train \
+  --profile dyspn_hw128_resnet18 \
+  --action plan
 ```
 
 The original `/root/demo/artifacts/rhb_auto_config_framework/...` commands
@@ -33,6 +36,12 @@ Current three-model deployment reports:
 - `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
 - `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes, strict all-RHB head default, and optional Host-post latency experiment.
 - `docs/dyspn_hw128_adaptation.md`: DySPN HW128 compiler-aligned scaffold, NYU Depth V2 adapter, and first RHB board probe.
+
+DySPN status:
+
+- `dyspn_test.dyspn_hw_offset_aff_compile_probe` passes compile/CModel/packer/board with `All same: True`.
+- Full `dyspn_hw_guide` exports to ONNX but still needs Host resize/concat/add + RHB Conv partitioning because the current compiler path rejects nearest `Resize`.
+- A trained HW-aligned checkpoint is required before end-to-end board validation because ConvTranspose-style decoder behavior is replaced by Host resize + Conv compiler-aligned glue.
 
 NLSPN strict semantic validation entrypoint on the lab machine:
 
@@ -98,6 +107,10 @@ python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py remote-train \
 
 python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py remote-train \
   --profile nlspn_eccv20_hw128_resnet18 \
+  --action plan
+
+python artifacts/rhb_auto_config_framework/rhb_auto_config/cli.py remote-train \
+  --profile dyspn_hw128_resnet18 \
   --action plan
 
 # After remote-train --action fetch, record checkpoint/export/packer hashes before validation.
