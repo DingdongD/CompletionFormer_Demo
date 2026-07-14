@@ -34,6 +34,24 @@ button.primary:hover { background: var(--accent-dark); }
 .metrics div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #edf0f3; padding-bottom: 5px; }
 .metrics dt { color: var(--muted); }
 .metrics dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.modelSummary {
+  display: grid;
+  gap: 8px;
+}
+.modelCard {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid #edf0f3;
+  border-radius: 7px;
+  background: #fbfcfd;
+  color: var(--muted);
+  font-size: 12px;
+}
+.modelCard strong {
+  color: var(--text);
+  font-size: 13px;
+}
 main { min-width: 0; padding: 18px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
 .runStatus { min-width: 120px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -41,13 +59,79 @@ main { min-width: 0; padding: 18px; }
 figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 figure img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #111827; }
 figcaption { padding: 8px 10px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
-.pointSection { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.pointSection,
+.latencySection {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
 .sectionTitle { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.sectionTitle span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.latencyBody {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 12px;
+  padding: 12px;
+}
+.latencyPie {
+  min-height: 260px;
+  border: 1px solid #edf0f3;
+  border-radius: 7px;
+}
+.latencyTable {
+  min-width: 0;
+}
+.latencyTable h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #344054;
+}
+.latencyTable h3:not(:first-child) {
+  margin-top: 14px;
+}
+.latencyTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.latencyTable td {
+  padding: 6px 0;
+  border-bottom: 1px solid #edf0f3;
+  color: var(--muted);
+}
+.latencyTable td:first-child {
+  max-width: 390px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.latencyTable td:nth-child(2),
+.latencyTable td:nth-child(3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.latencyInsight {
+  padding: 0 12px 12px;
+  color: #344054;
+}
+.emptyState {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+}
 .pointControls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .pointControls button { width: auto; min-height: 28px; padding: 4px 8px; font-size: 12px; }
 .pointControls button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 #pointCloud { height: 540px; }
 #pointCloud canvas { width: 100%; height: 100%; display: block; }
 #pointCount { color: var(--muted); font-variant-numeric: tabular-nums; }
-@media (max-width: 980px) { body { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid var(--line); } .imageGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); } #pointCloud { height: 420px; } }
+@media (max-width: 980px) { body { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid var(--line); } .imageGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); } .latencyBody { grid-template-columns: 1fr; } #pointCloud { height: 420px; } }
 @media (max-width: 560px) { .imageGrid { grid-template-columns: 1fr; } .topbar { align-items: flex-start; flex-direction: column; } }

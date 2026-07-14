@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RHB Board Depth Demo</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="static/style.css?v=nlspn-20260714">
+  <link rel="stylesheet" href="static/style.css?v=latency-breakdown-20260714">
 </head>
 <body>
   <aside class="sidebar">
@@ -37,6 +37,11 @@
       <label>Runtime</label>
       <div id="runtimeInfo" class="status"></div>
     </section>
+
+    <section class="panel">
+      <label>Model Comparison</label>
+      <div id="modelSummary" class="modelSummary"></div>
+    </section>
   </aside>
 
   <main>
@@ -57,6 +62,18 @@
       <figure><img id="errImg"><figcaption>abs error</figcaption></figure>
     </section>
 
+    <section class="latencySection">
+      <div class="sectionTitle">
+        <h2>Latency Breakdown</h2>
+        <span id="latencyTotal"></span>
+      </div>
+      <div class="latencyBody">
+        <div id="latencyPie" class="latencyPie"></div>
+        <div id="latencyTable" class="latencyTable"></div>
+      </div>
+      <p id="latencyInsight" class="latencyInsight"></p>
+    </section>
+
     <section class="pointSection">
       <div class="sectionTitle">
         <h2>Point Cloud</h2>
@@ -72,6 +89,6 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=nlspn-20260714"></script>
+  <script src="static/app.js?v=latency-breakdown-20260714"></script>
 </body>
 </html>

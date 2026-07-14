@@ -10,6 +10,10 @@ const uploadStatus = document.getElementById("uploadStatus");
 const tofStatus = document.getElementById("tofStatus");
 const pathLine = document.getElementById("pathLine");
 const metricsEl = document.getElementById("metrics");
+const latencyTotal = document.getElementById("latencyTotal");
+const latencyPie = document.getElementById("latencyPie");
+const latencyTable = document.getElementById("latencyTable");
+const latencyInsight = document.getElementById("latencyInsight");
 const pointCount = document.getElementById("pointCount");
 const rgbViewBtn = document.getElementById("rgbViewBtn");
 const obliqueViewBtn = document.getElementById("obliqueViewBtn");
@@ -48,6 +52,117 @@ function metricRow(label, value) {
   return row;
 }
 
+function fmtMs(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
+  if (value >= 1000) return `${(value / 1000).toFixed(2)} s`;
+  return `${value.toFixed(1)} ms`;
+}
+
+function isLatencyTotalMarker(name) {
+  return name === "wall" || name.endsWith("_total") || name.includes("tracked_total");
+}
+
+function latencyCategory(name) {
+  if (name.startsWith("load::")) return "Submodel load/switch";
+  if (name.startsWith("host::") || name.includes("host") || name.includes("split_sum") || name.includes("resize")) {
+    return "Host glue / transfer";
+  }
+  if (name.startsWith("sat_")) return "Quant/saturation checks";
+  if (name.endsWith("_rhb") || name.includes("scale_compensated") || name.includes("cspn_test.")) return "RHB compute";
+  return "Other";
+}
+
+function latencyBreakdown(metrics) {
+  const latencies = metrics.latencies_ms || {};
+  const raw = Object.entries(latencies)
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value));
+  const ops = raw.filter(([name]) => !isLatencyTotalMarker(name));
+  if (!ops.length) return null;
+
+  const categories = new Map();
+  for (const [name, value] of ops) {
+    const category = latencyCategory(name);
+    categories.set(category, (categories.get(category) || 0) + value);
+  }
+  const measured = Array.from(categories.values()).reduce((a, b) => a + b, 0);
+  const total = typeof metrics.latency_total_ms === "number" ? metrics.latency_total_ms : measured;
+  if (total > measured + 1) categories.set("Untracked / scheduler", total - measured);
+
+  return {
+    rows: Array.from(categories.entries()).filter(([, value]) => value > 0.01).sort((a, b) => b[1] - a[1]),
+    topOps: ops.sort((a, b) => b[1] - a[1]).slice(0, 8),
+    total,
+  };
+}
+
+function bottleneckText(modelKey, breakdown, metrics) {
+  if (!breakdown) {
+    if (modelKey === "nlspn") {
+      return "NLSPN saved outputs do not currently include fine-grained latency traces. Instrument the runner with LATENCY markers to expose the host propagation and split-head costs.";
+    }
+    return "No fine-grained latency trace was parsed from this board output.";
+  }
+  const [topName, topMs] = breakdown.rows[0];
+  const pct = breakdown.total > 0 ? topMs / breakdown.total * 100 : 0;
+  if (modelKey === "cspn" && topName === "Submodel load/switch") {
+    return `Main bottleneck: repeated submodel load/switch dominates (${pct.toFixed(1)}%). Reduce launch count, reuse loaded packers, or fuse compiler-aligned blocks.`;
+  }
+  if (modelKey === "completionformer") {
+    const slow = metrics.latency_slowest_op ? ` Slowest op: ${metrics.latency_slowest_op} (${fmtMs(metrics.latency_slowest_ms)}).` : "";
+    return `Main bottleneck: full-resolution decoder/head RHB compute dominates (${pct.toFixed(1)}%).${slow}`;
+  }
+  return `Main bottleneck: ${topName} (${pct.toFixed(1)}% of tracked latency).`;
+}
+
+function renderLatencyBreakdown(metrics, modelKey) {
+  const breakdown = latencyBreakdown(metrics);
+  if (!breakdown) {
+    latencyTotal.textContent = "not instrumented";
+    latencyTable.innerHTML = '<div class="emptyState">Fine-grained latency trace is not available for this output.</div>';
+    latencyInsight.textContent = bottleneckText(modelKey, null, metrics);
+    if (window.Plotly) Plotly.purge("latencyPie");
+    latencyPie.replaceChildren();
+    return;
+  }
+
+  latencyTotal.textContent = `total ${fmtMs(breakdown.total)}`;
+  const labels = breakdown.rows.map(([name]) => name);
+  const values = breakdown.rows.map(([, value]) => value);
+  if (window.Plotly) {
+    Plotly.react("latencyPie", [{
+      type: "pie",
+      labels,
+      values,
+      hole: 0.42,
+      sort: false,
+      textinfo: "label+percent",
+      marker: { colors: ["#126e82", "#d6a84f", "#5865a9", "#7a8797", "#9ccfc1"] },
+    }], {
+      margin: { l: 8, r: 8, t: 8, b: 8 },
+      paper_bgcolor: "#ffffff",
+      showlegend: false,
+      font: { size: 11 },
+    }, { responsive: true, displayModeBar: false });
+  } else {
+    latencyPie.textContent = labels.map((label, i) => `${label}: ${fmtMs(values[i])}`).join("\n");
+  }
+
+  const categoryRows = breakdown.rows.map(([name, value]) => {
+    const pct = breakdown.total > 0 ? value / breakdown.total * 100 : 0;
+    return `<tr><td>${name}</td><td>${fmtMs(value)}</td><td>${pct.toFixed(1)}%</td></tr>`;
+  }).join("");
+  const opRows = breakdown.topOps.map(([name, value]) =>
+    `<tr><td title="${name}">${name}</td><td>${fmtMs(value)}</td><td></td></tr>`
+  ).join("");
+  latencyTable.innerHTML = `
+    <h3>Categories</h3>
+    <table><tbody>${categoryRows}</tbody></table>
+    <h3>Top Ops</h3>
+    <table><tbody>${opRows}</tbody></table>
+  `;
+  latencyInsight.textContent = bottleneckText(modelKey, breakdown, metrics);
+}
+
 function renderSample(payload) {
   for (const [key, id] of Object.entries(imageIds)) {
     document.getElementById(id).src = payload.images[key];
@@ -73,6 +188,7 @@ function renderSample(payload) {
     metricRows.push(metricRow("csv pred rmse", payload.metrics.csv_pred_rmse));
   }
   metricsEl.replaceChildren(...metricRows);
+  renderLatencyBreakdown(payload.metrics, payload.model.key || currentModel());
   renderPointCloud(payload.point_cloud);
 }
 

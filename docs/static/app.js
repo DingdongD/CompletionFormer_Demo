@@ -5,6 +5,11 @@ const runStatus = document.getElementById("runStatus");
 const runtimeInfo = document.getElementById("runtimeInfo");
 const pathLine = document.getElementById("pathLine");
 const metricsEl = document.getElementById("metrics");
+const modelSummary = document.getElementById("modelSummary");
+const latencyTotal = document.getElementById("latencyTotal");
+const latencyPie = document.getElementById("latencyPie");
+const latencyTable = document.getElementById("latencyTable");
+const latencyInsight = document.getElementById("latencyInsight");
 const pointCount = document.getElementById("pointCount");
 const rgbViewBtn = document.getElementById("rgbViewBtn");
 const obliqueViewBtn = document.getElementById("obliqueViewBtn");
@@ -66,6 +71,171 @@ function metricRow(label, value) {
   row.appendChild(dt);
   row.appendChild(dd);
   return row;
+}
+
+function fmt(value, digits = 3) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
+  return value.toFixed(digits);
+}
+
+function fmtMs(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
+  if (value >= 1000) return `${(value / 1000).toFixed(2)} s`;
+  return `${value.toFixed(1)} ms`;
+}
+
+function samplesForModel(modelId) {
+  return manifest.samples.filter(s => (s.model || "completionformer") === modelId);
+}
+
+function modelName(modelId) {
+  const model = (manifest.models || []).find(m => m.id === modelId);
+  return model ? model.name : modelId;
+}
+
+function mean(values) {
+  const nums = values.filter(v => typeof v === "number" && Number.isFinite(v));
+  if (!nums.length) return undefined;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+function isLatencyTotalMarker(name) {
+  return name === "wall" || name.endsWith("_total") || name.includes("tracked_total");
+}
+
+function latencyCategory(name) {
+  if (name.startsWith("load::")) return "Submodel load/switch";
+  if (name.startsWith("host::") || name.includes("host") || name.includes("split_sum") || name.includes("resize")) {
+    return "Host glue / transfer";
+  }
+  if (name.startsWith("sat_")) return "Quant/saturation checks";
+  if (name.endsWith("_rhb") || name.includes("scale_compensated") || name.includes("cspn_test.")) return "RHB compute";
+  return "Other";
+}
+
+function latencyBreakdown(metrics) {
+  const latencies = metrics.latencies_ms || {};
+  const raw = Object.entries(latencies)
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value));
+  const ops = raw.filter(([name]) => !isLatencyTotalMarker(name));
+  if (!ops.length) return null;
+
+  const categories = new Map();
+  for (const [name, value] of ops) {
+    const category = latencyCategory(name);
+    categories.set(category, (categories.get(category) || 0) + value);
+  }
+  const measured = Array.from(categories.values()).reduce((a, b) => a + b, 0);
+  const total = typeof metrics.latency_total_ms === "number" ? metrics.latency_total_ms : measured;
+  if (total > measured + 1) categories.set("Untracked / scheduler", total - measured);
+
+  const rows = Array.from(categories.entries())
+    .filter(([, value]) => value > 0.01)
+    .sort((a, b) => b[1] - a[1]);
+  const topOps = ops.sort((a, b) => b[1] - a[1]).slice(0, 8);
+  return { rows, topOps, total };
+}
+
+function bottleneckText(modelId, breakdown, metrics) {
+  if (!breakdown) {
+    if (modelId === "nlspn") {
+      return "NLSPN saved samples currently package board/reference accuracy maps but not fine-grained latency traces. The expected bottlenecks are Host-side propagation/glue plus split prediction and guidance heads.";
+    }
+    return "No fine-grained latency trace was packaged for this sample.";
+  }
+  const [topName, topMs] = breakdown.rows[0];
+  const pct = breakdown.total > 0 ? (topMs / breakdown.total) * 100 : 0;
+  if (modelId === "cspn" && topName === "Submodel load/switch") {
+    return `Main bottleneck: repeated submodel load/switch dominates this CSPN flow (${pct.toFixed(1)}%). The next optimization target is fewer RHB launches, persistent packer loading, and larger fused compiler-aligned blocks.`;
+  }
+  if (modelId === "completionformer") {
+    const slow = metrics.latency_slowest_op ? ` Slowest op: ${metrics.latency_slowest_op} (${fmtMs(metrics.latency_slowest_ms)}).` : "";
+    return `Main bottleneck: full-resolution decoder/head RHB compute dominates (${pct.toFixed(1)}%).${slow} Host glue is comparatively small but still visible at resize/split boundaries.`;
+  }
+  return `Main bottleneck: ${topName} (${pct.toFixed(1)}% of the tracked end-to-end latency).`;
+}
+
+function renderLatencyBreakdown(metrics, modelId) {
+  const breakdown = latencyBreakdown(metrics);
+  if (!breakdown) {
+    latencyTotal.textContent = "not instrumented";
+    latencyTable.innerHTML = '<div class="emptyState">Fine-grained latency trace is not packaged for this model yet.</div>';
+    latencyInsight.textContent = bottleneckText(modelId, null, metrics);
+    if (window.Plotly) Plotly.purge("latencyPie");
+    latencyPie.replaceChildren();
+    return;
+  }
+
+  latencyTotal.textContent = `total ${fmtMs(breakdown.total)}`;
+  const labels = breakdown.rows.map(([name]) => name);
+  const values = breakdown.rows.map(([, value]) => value);
+  if (window.Plotly) {
+    Plotly.react("latencyPie", [{
+      type: "pie",
+      labels,
+      values,
+      hole: 0.42,
+      sort: false,
+      textinfo: "label+percent",
+      marker: { colors: ["#126e82", "#d6a84f", "#5865a9", "#7a8797", "#9ccfc1"] },
+    }], {
+      margin: { l: 8, r: 8, t: 8, b: 8 },
+      paper_bgcolor: "#ffffff",
+      showlegend: false,
+      font: { size: 11 },
+    }, { responsive: true, displayModeBar: false });
+  } else {
+    latencyPie.textContent = labels.map((label, i) => `${label}: ${fmtMs(values[i])}`).join("\n");
+  }
+
+  const categoryRows = breakdown.rows.map(([name, value]) => {
+    const pct = breakdown.total > 0 ? value / breakdown.total * 100 : 0;
+    return `<tr><td>${name}</td><td>${fmtMs(value)}</td><td>${pct.toFixed(1)}%</td></tr>`;
+  }).join("");
+  const opRows = breakdown.topOps.map(([name, value]) =>
+    `<tr><td title="${name}">${name}</td><td>${fmtMs(value)}</td><td></td></tr>`
+  ).join("");
+  latencyTable.innerHTML = `
+    <h3>Categories</h3>
+    <table><tbody>${categoryRows}</tbody></table>
+    <h3>Top Ops</h3>
+    <table><tbody>${opRows}</tbody></table>
+  `;
+  latencyInsight.textContent = bottleneckText(modelId, breakdown, metrics);
+}
+
+function aggregateBottleneck(samples) {
+  const totals = new Map();
+  let grand = 0;
+  for (const sample of samples) {
+    const b = latencyBreakdown(sample.metrics || {});
+    if (!b) continue;
+    grand += b.total;
+    for (const [name, value] of b.rows) totals.set(name, (totals.get(name) || 0) + value);
+  }
+  if (!totals.size) return "latency trace missing";
+  const [name, value] = Array.from(totals.entries()).sort((a, b) => b[1] - a[1])[0];
+  return `${name} ${((value / grand) * 100).toFixed(0)}%`;
+}
+
+function renderModelSummary() {
+  const cards = (manifest.models || []).map(model => {
+    const samples = samplesForModel(model.id);
+    const avgAbs = mean(samples.map(s => s.metrics?.abs_mean));
+    const avgRmse = mean(samples.map(s => s.metrics?.rmse));
+    const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
+    const card = document.createElement("div");
+    card.className = "modelCard";
+    card.innerHTML = `
+      <strong>${model.name}</strong>
+      <span>${samples.length} board samples</span>
+      <span>L1 ${fmt(avgAbs, 4)} / RMSE ${fmt(avgRmse, 4)}</span>
+      <span>lat ${avgLatency === undefined ? "n/a" : fmtMs(avgLatency)}</span>
+      <span>${aggregateBottleneck(samples)}</span>
+    `;
+    return card;
+  });
+  modelSummary.replaceChildren(...cards);
 }
 
 function renderMetrics(metrics) {
@@ -244,6 +414,7 @@ async function loadSample(index) {
   }
   pathLine.textContent = meta.source_npz;
   renderMetrics(meta.metrics);
+  renderLatencyBreakdown(meta.metrics, sample.model || currentModel());
   const pc = await fetch(`${sample.base}/${meta.point_cloud}`).then(r => r.json());
   renderPointCloud(pc);
   runStatus.textContent = `sample ${index}`;
@@ -259,6 +430,7 @@ async function init() {
     opt.textContent = model.name;
     modelSelect.appendChild(opt);
   }
+  renderModelSummary();
   renderSampleOptions();
   await loadSample(sampleSelect.value);
 }
@@ -272,7 +444,9 @@ function renderSampleOptions() {
     opt.textContent = `${sample.title} | abs ${sample.metrics.abs_mean.toFixed(4)}`;
     sampleSelect.appendChild(opt);
   }
-  runtimeInfo.textContent = `${samples.length} saved board outputs, ${manifest.point_cloud_sampling}`;
+  const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
+  const latencyText = avgLatency === undefined ? "latency trace n/a" : `avg ${fmtMs(avgLatency)}`;
+  runtimeInfo.textContent = `${samples.length} saved board outputs, ${latencyText}, ${manifest.point_cloud_sampling}`;
 }
 
 loadBtn.addEventListener("click", () => loadSample(sampleSelect.value));

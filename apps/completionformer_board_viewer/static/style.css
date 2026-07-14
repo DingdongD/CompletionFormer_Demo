@@ -165,6 +165,7 @@ figcaption {
 }
 
 .pointSection,
+.latencySection,
 .logSection {
   margin-top: 14px;
   background: var(--surface);
@@ -174,12 +175,80 @@ figcaption {
 }
 
 .sectionTitle {
-  height: 46px;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.sectionTitle span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.latencyBody {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 12px;
+  padding: 12px;
+}
+
+.latencyPie {
+  min-height: 260px;
+  border: 1px solid #edf0f3;
+  border-radius: 7px;
+}
+
+.latencyTable { min-width: 0; }
+
+.latencyTable h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #344054;
+}
+
+.latencyTable h3:not(:first-child) { margin-top: 14px; }
+
+.latencyTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.latencyTable td {
+  padding: 6px 0;
+  border-bottom: 1px solid #edf0f3;
+  color: var(--muted);
+}
+
+.latencyTable td:first-child {
+  max-width: 390px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.latencyTable td:nth-child(2),
+.latencyTable td:nth-child(3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.latencyInsight {
+  padding: 0 12px 12px;
+  color: #344054;
+}
+
+.emptyState {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  color: var(--muted);
 }
 
 
@@ -235,6 +304,7 @@ figcaption {
   body { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
   .imageGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .latencyBody { grid-template-columns: 1fr; }
   #pointCloud { height: 420px; }
 }
 
