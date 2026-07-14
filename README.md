@@ -128,7 +128,7 @@ samples. The Host/RHB numbers are from the packaged board traces in
 | --- | ---: | ---: | --- |
 | CompletionFormer HW128 | 35.4 ms | 1515.6 ms | Board path is dominated by full-res decoder/head launches and data/glue overhead. |
 | CSPN ResNetTiny HW128 | 15.1 ms | 16684.1 ms | Current board path is dominated by repeated submodel load/switch, not arithmetic. |
-| NLSPN HW128 | 77.7 ms topology-only | 8817.4 ms | Full trained NLSPN ckpt was not present locally; topology CPU timing uses the same compiler-aligned model with random weights. Board path is split-launch heavy. |
+| NLSPN HW128 | 75.0 ms | 8817.4 ms | Uses pulled remote `model_best_infer_state.pt` with strict `missing=[]`, `unexpected=[]`. Board path is split-launch heavy. |
 
 The CPU numbers are not an accuracy comparison; they are a host-side latency
 baseline for the compiler-aligned model structures. The current RHB deployments
@@ -136,6 +136,12 @@ are useful for validating board-compatible scheduling, quantization contracts,
 and visual output, but their latency is dominated by launch granularity and
 runtime/model-switch overhead. The main optimization target is therefore larger
 RHB subgraphs, persistent model loading, and fewer Host/RHB round trips.
+
+NLSPN checkpoint pullback and strict-load details are recorded in:
+
+```text
+reports/nlspn_hw128_ckpt_pullback_20260714.md
+```
 
 ## GitHub Pages Demo
 

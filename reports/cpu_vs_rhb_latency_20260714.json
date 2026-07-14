@@ -37,20 +37,30 @@
     "status": "ok",
     "wall_setup_plus_measure_ms": 139.51423671096563
   },
-  "nlspn_hw128_topology_random_weights": {
-    "status": "ok_topology_only_no_ckpt_found",
+  "nlspn_hw128": {
+    "status": "ok_strict_ckpt",
+    "ckpt": "/root/demo/artifacts/nlspn_hw_aligned_ckpts/nyu_nlspn_hw_aligned_128_20260713/model_best_infer_state.pt",
+    "ckpt_metrics": {
+      "val_l1": 0.10124755278229713,
+      "val_pred_init_l1": 0.10945911658927798,
+      "val_rmse": 0.26286692218855023,
+      "epoch": 50,
+      "train_loss": 0.1066361660913132,
+      "lr": 0.00015,
+      "elapsed_sec": 45.80579972267151,
+      "best_l1": 0.10124755278229713
+    },
     "samples": 5,
-    "mean_ms": 79.15072478353977,
-    "median_ms": 77.68111303448677,
-    "min_ms": 72.2787780687213,
-    "max_ms": 88.70540512725711,
+    "mean_ms": 75.11609243229032,
+    "median_ms": 75.01993700861931,
+    "min_ms": 73.91463685780764,
+    "max_ms": 76.78345404565334,
     "raw_ms": [
-      83.50725471973419,
-      73.5810729674995,
-      77.68111303448677,
-      88.70540512725711,
-      72.2787780687213
-    ],
-    "note": "Full trained NLSPN HW checkpoint was not found locally; this measures the same compiler-aligned topology on CPU with random weights."
+      75.01993700861931,
+      76.78345404565334,
+      74.72687866538763,
+      75.13555558398366,
+      73.91463685780764
+    ]
   }
 }
