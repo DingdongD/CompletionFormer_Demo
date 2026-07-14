@@ -1,0 +1,24 @@
+{
+  "accelerator": "RHB-Lite black-box",
+  "weight_budget_bytes": 8388608,
+  "effective_weight_budget_ratio": 0.9,
+  "effective_weight_budget_bytes": 7549747,
+  "default_quantization": {
+    "activation": "int8 per-tensor",
+    "weight": "int8 compiler-defined",
+    "calibration_samples": 32
+  },
+  "runtime": {
+    "rram_only": false,
+    "clear_wr_done_before_run": true,
+    "board_user": "root",
+    "board_default_ip": "192.168.115.122",
+    "board_workspace": "/home/root/workspace/demo_vp_xj/packers"
+  },
+  "cost_model": {
+    "launch_latency_ms_default": 3.0,
+    "host_sigmoid_128x128_ms": 2.0,
+    "large_tensor_boundary_penalty": "high",
+    "prefer_block_level_offload": true
+  }
+}

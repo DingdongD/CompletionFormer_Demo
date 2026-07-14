@@ -1,0 +1,46 @@
+{
+  "case_name": "nlspn_eccv20_hw128_compiler_aligned_probe",
+  "model_family": "NLSPN ECCV20 compiler-aligned",
+  "input_shape": [1, 4, 128, 128],
+  "source_root": "/root/demo/NLSPN_ECCV20",
+  "source_models_root": "/root/demo/NLSPN_ECCV20/src/model",
+  "checkpoint": null,
+  "checkpoint_candidates": [
+    "/root/demo/NLSPN_ECCV20/src/pretrained/resnet18.pth",
+    "/root/demo/NLSPN_ECCV20/src/pretrained/resnet34.pth"
+  ],
+  "representative_data": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/data/nyu_val32_source_128x128.npz",
+  "deployment_goal": "latency-first Host/RHB split with exact Host fallback for NLSPN propagation; optional retrainable aligned propagation later",
+  "accepted_rhb_submodels": [
+    "conv1_rgb and conv1_dep stem candidates",
+    "resnet18/resnet34 encoder layer candidates after channel/stride risk checks",
+    "conv6 candidate after small-spatial high-channel split checks",
+    "decoder ConvTranspose replacements as Host resize + RHB Conv2d candidates",
+    "init-depth, guidance, and confidence Conv heads split as separate scale-aware submodels"
+  ],
+  "host_ops": [
+    "RGBD input preparation",
+    "concat and crop in _concat",
+    "Host resize before ConvTranspose replacement",
+    "LeakyReLU if not retrained to ReLU",
+    "confidence sigmoid",
+    "NLSPN propagation: offset/affinity normalization, ModulatedDeformConvFunction, preserve-input mask, clamp",
+    "visualization and metric evaluation"
+  ],
+  "forbidden_patterns": [
+    "ModulatedDeformConvFunction inside RHB",
+    "custom deformconv CUDA extension inside RHB",
+    "dynamic offset/affinity propagation inside RHB",
+    "ConvTranspose2d directly in RHB",
+    "Sigmoid inside RHB without exact board evidence",
+    "multi-output RHB submodel",
+    "internal Slice/Gather/downsample inside RHB"
+  ],
+  "notes": [
+    "Start with resnet18 for lower channel pressure; resnet34 is a second-stage target.",
+    "No full NLSPN_NYU.pt checkpoint is currently present under /root/demo/NLSPN_ECCV20/results; import or train a full checkpoint before numerical end-to-end validation.",
+    "Use 128x128 to align with the existing CompletionFormer/CSPN app data path.",
+    "The first deployable split should return pred_init, guidance, and confidence from RHB, then run NLSPN propagation on Host.",
+    "A fully compiler-aligned variant requires retraining if replacing deformable propagation with fixed-neighbor shift-sum propagation."
+  ]
+}

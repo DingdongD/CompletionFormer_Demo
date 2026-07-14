@@ -1,0 +1,44 @@
+{
+  "case_name": "completionformer_hw128_ckpt00059",
+  "model_family": "CompletionFormer Tiny HW128",
+  "input_shape": [1, 3, 128, 128],
+  "checkpoint": "/root/demo/CompletionFormer/ref_model_hw/model_00059.pt",
+  "source_models_root": "/root/demo/models/completionformer_test",
+  "successful_pipeline": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702",
+  "portable_runtime": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime",
+  "accepted_rhb_submodels": [
+    "decoder_tiny_dec6_resize_conv_basicblock_nocbam_4x4_to_8x8_ckpt",
+    "decoder_tiny_dec5_resize_conv_basicblock_nocbam_8x8_to_16x16_ckpt",
+    "decoder_tiny_dec4_resize_conv_basicblock_nocbam_16x16_to_32x32_ckpt",
+    "decoder_tiny_dec3_resize_conv_basicblock_nocbam_32x32_to_64x64_ckpt",
+    "decoder_tiny_dec2_resize_upconv_in80_chunk0_64x64_to_128x128_ckpt",
+    "decoder_tiny_dec2_resize_upconv_in80_chunk1_64x64_to_128x128_ckpt",
+    "decoder_tiny_dec2_exact_block_conv0_128x128_ckpt",
+    "decoder_tiny_dec2_exact_block_conv1_128x128_ckpt",
+    "head_tiny_dep_dec1_conv_relu_128x128_ckpt",
+    "head_tiny_dep_dec0_conv_relu_128x128_ckpt",
+    "head_tiny_gd_dec1_conv_relu_128x128_ckpt",
+    "head_tiny_gd_dec0_conv_128x128_ckpt",
+    "head_tiny_cf_dec1_conv_relu_128x128_ckpt",
+    "head_tiny_cf_dec0_conv_only_128x128_ckpt"
+  ],
+  "host_ops": [
+    "feature export",
+    "concat",
+    "split-sum dequant/requant glue",
+    "residual add",
+    "cf_dec0 sigmoid",
+    "NLSPN"
+  ],
+  "forbidden_patterns": [
+    "fused dep/gd/cf dec1 for ckpt00059",
+    "RHB Sigmoid for cf_dec0",
+    "rram_only=true"
+  ],
+  "board_metrics": {
+    "final_pred_abs_mean_mean": 0.022418,
+    "final_pred_p95_mean": 0.096996,
+    "latency_ms_mean": 1552.956,
+    "latency_ms_mean_excluding_outlier": 1488.789
+  }
+}
