@@ -407,6 +407,7 @@ function renderPointCloudPlotly(pc) {
   };
   Plotly.react("pointCloud", [trace], layout, { responsive: true, displayModeBar: true });
   plotlyReady = true;
+  requestAnimationFrame(resizeResponsivePanels);
 }
 
 function renderBevPlotly(pc) {
@@ -437,6 +438,7 @@ function renderBevPlotly(pc) {
   };
   Plotly.react("pointCloud", [trace], layout, { responsive: true, displayModeBar: true });
   plotlyReady = true;
+  requestAnimationFrame(resizeResponsivePanels);
 }
 
 function setPointControlState(view) {
@@ -455,6 +457,23 @@ function renderPointCloud(pc) {
   } else {
     drawPointCloudCanvas(pc);
   }
+}
+
+let resizeTimer = 0;
+
+function resizeResponsivePanels() {
+  const pointRoot = document.getElementById("pointCloud");
+  if (!pointRoot) return;
+  if (window.Plotly && plotlyReady) {
+    Plotly.Plots.resize(pointRoot);
+  } else if (currentPointCloud) {
+    drawPointCloudCanvas(currentPointCloud);
+  }
+}
+
+function scheduleResponsiveResize() {
+  window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(resizeResponsivePanels, 80);
 }
 
 function applyPointView(view) {
@@ -520,9 +539,12 @@ rgbViewBtn.addEventListener("click", () => applyPointView("rgb"));
 obliqueViewBtn.addEventListener("click", () => applyPointView("oblique"));
 topViewBtn.addEventListener("click", () => applyPointView("top"));
 bevViewBtn.addEventListener("click", () => applyPointView("bev"));
-window.addEventListener("resize", () => {
-  if (currentPointCloud && !(window.Plotly && plotlyReady)) drawPointCloudCanvas(currentPointCloud);
-});
+window.addEventListener("resize", scheduleResponsiveResize);
+
+if ("ResizeObserver" in window) {
+  const pointResizeObserver = new ResizeObserver(scheduleResponsiveResize);
+  pointResizeObserver.observe(document.getElementById("pointCloud"));
+}
 
 init().catch(err => {
   runStatus.textContent = "Load failed";

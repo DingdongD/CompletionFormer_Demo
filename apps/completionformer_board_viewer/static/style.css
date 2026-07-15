@@ -18,6 +18,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 .sidebar {
@@ -117,6 +118,7 @@ button.primary:hover { background: var(--accent-dark); }
 
 main {
   min-width: 0;
+  width: 100%;
   padding: 18px;
 }
 
@@ -137,12 +139,14 @@ main {
 
 .imageGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 figure {
   margin: 0;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -151,8 +155,10 @@ figure {
 
 figure img {
   width: 100%;
+  max-width: 100%;
+  height: auto;
   aspect-ratio: 1 / 1;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   background: #111827;
 }
@@ -191,17 +197,18 @@ figcaption {
 
 .latencyBody {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
+  grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
 }
 
 .latencyPie {
   min-height: 260px;
+  min-width: 0;
   border: 1px solid #edf0f3;
   border-radius: 7px;
   display: grid;
-  grid-template-columns: minmax(160px, 220px) 1fr;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   padding: 10px;
@@ -311,6 +318,9 @@ figcaption {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .pointControls button {
@@ -327,10 +337,14 @@ figcaption {
 }
 
 #pointCloud {
-  height: 520px;
+  width: 100%;
+  height: clamp(320px, 54vw, 540px);
+  min-width: 0;
 }
 
-#pointCloud canvas {
+#pointCloud canvas,
+#pointCloud .plot-container,
+#pointCloud .svg-container {
   width: 100%;
   height: 100%;
   display: block;
@@ -358,9 +372,10 @@ figcaption {
 @media (max-width: 980px) {
   body { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
-  .imageGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  main { padding: 14px; }
+  .imageGrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
   .latencyBody { grid-template-columns: 1fr; }
-  #pointCloud { height: 420px; }
+  #pointCloud { height: clamp(300px, 62vw, 440px); }
 }
 
 @media (max-width: 720px) {
@@ -371,4 +386,7 @@ figcaption {
 @media (max-width: 560px) {
   .imageGrid { grid-template-columns: 1fr; }
   .topbar { align-items: flex-start; flex-direction: column; }
+  .sectionTitle { align-items: flex-start; flex-direction: column; height: auto; padding: 10px 12px; }
+  .pointControls { justify-content: flex-start; width: 100%; }
+  .pointControls button { flex: 1 1 88px; }
 }
