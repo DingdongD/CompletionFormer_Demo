@@ -9,13 +9,26 @@
   ],
   "source_root": "/root/demo/DySPN",
   "onnx_glob": "",
-  "checkpoint": "",
-  "representative_data": "",
-  "deployment_goal": "maximize board-pass RHB subgraphs while preserving exact Host fallback for risky glue",
+  "checkpoint": "artifacts/rhb_auto_config_framework/remote_ckpts/dyspn_hw128_resnet18_frontend_rhbq_latest/model_best_slim_epoch78.pt",
+  "representative_data": "artifacts/output_completionformer_decoder_system_128x128_ckpt00059_traincalib32_20260702/nyu_val32_source_128x128.npz",
+  "input_contract": {
+    "rgb": "dyspn_rgb_0_1_auto_denorm",
+    "depth": "nyu_128x128_shared_depth",
+    "reason": "DySPN epoch78 was trained with RGB in [0,1], not ImageNet-normalized RGB."
+  },
+  "accepted_board_profile": {
+    "package": "dyspn_fe3_fd2_rhbq_epoch78_rramfalse_20260716",
+    "profile": "latency_tailmerge7_ref_aligned",
+    "board_vs_ref_l1_mean_val32": 0.020532,
+    "board_vs_gt_l1_mean_val32": 0.058010,
+    "wall_latency_ms_mean_val32": 4145.173
+  },
+  "deployment_goal": "maximize board-pass RHB subgraphs while preserving exact Host fallback for risky glue and model-owned preprocessing contracts",
   "notes": [
     "Run profile-source first to identify high-risk operators in the reference code.",
     "Run score-onnx-dir if probe/exported ONNX files already exist.",
     "Use optimize-onnx --export-submodels for each candidate full/subgraph ONNX.",
-    "Only promote rules after board pass; CModel pass alone is not sufficient."
+    "Only promote rules after board pass; CModel pass alone is not sufficient.",
+    "Do not use pre-rgbfix DySPN visualizations for accuracy analysis; they used the wrong RGB contract."
   ]
 }

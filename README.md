@@ -23,13 +23,13 @@ agentflow_rhb/
 ```
 
 It packages the rule database and automation used to generalize the
-CompletionFormer deployment flow to CSPN and NLSPN:
+CompletionFormer deployment flow to CSPN, NLSPN, and DySPN:
 
 - ONNX graph import, annotation, layout risk analysis, and deep-search planning
 - exact compiler-aligned rewrite contracts such as IC/OC split and pad/slice
 - approximate rewrite policy that requires compiler-aligned retraining
 - software-side int8 outlier, saturation, kurtosis, and boundary-scale diagnostics
-- SSH remote training templates for CSPN/NLSPN aligned checkpoints
+- SSH remote training templates for aligned checkpoints
 - compile/CModel/Model-Packer/board-run wrappers for the lab environment
 
 Quick smoke commands:
@@ -94,7 +94,7 @@ Summary metrics from `validation/val32_metrics.csv`:
 - optimized sample0 tracked latency: `1492.224 ms`
 - runtime mitigation: max CPU frequency, `mlockall`, input pretouch, GC disabled, and `wr_done` clear before each launch
 
-## CompletionFormer / CSPN / NLSPN Comparison
+## CompletionFormer / CSPN / NLSPN / DySPN Comparison
 
 The GitHub Pages demo and local viewer now expose the same comparison flow:
 
@@ -110,12 +110,17 @@ Current published sample summary from `docs/data/manifest.json`:
 | CompletionFormer HW128 | 15 | 0.0222 | 0.0550 | stable `1492.224 ms` | Full-resolution decoder/head RHB conv blocks plus Host resize/split/sum glue |
 | CSPN ResNetTiny HW128 | 32 | 0.1089 | 0.1479 | stable `2121.742 ms` / latest trace `2197.879 ms` | Accepted exact 2-load Model-Packer partition; residual cost is launch/load plus RHB conv blocks |
 | NLSPN HW128 | 32 | 0.0779 | 0.1456 | stable `4282.089 ms` / latest trace `4095.602 ms` | Accepted 2-pack decoder partition; dec5/dec4/rest still dominate launch and board compute |
+| DySPN HW128 | 32 | 0.0205 | 0.0523 | val32 mean `4145.173 ms` | Tailmerge7 RHB packer partition; latency is dominated by repeated packer load/switch rather than final Host propagation |
 
 The bottleneck interpretation is:
 
 - CompletionFormer is numerically the strongest of the three packaged demos. Runtime is dominated by full-resolution decoder/head RHB conv blocks; the remaining Host cost comes from resize, split/sum glue, and boundary requantization.
 - CSPN now uses the accepted exact 2-load packer partition. It is much faster than the earlier per-subgraph launch path, but still slower than CPU because the board path pays load/switch and Host/RHB transfer cost.
 - NLSPN now uses an accepted 2-pack decoder partition. It is also improved over the earlier split-heavy path, but remains launch and transfer dominated.
+- DySPN epoch78 is sensitive to the RGB preprocessing contract. It must use RGB
+  in `[0,1]`; the app and board runner now apply `dyspn_rgb_0_1_auto_denorm`
+  when consuming the shared CompletionFormer NYU npz. Older DySPN outputs made
+  before this fix are stale and should not be used for accuracy comparisons.
 - CompletionFormer runtime outliers were traced to Host/runtime jitter before DMA submission, not NPU arithmetic. The runner now locks CPU frequency, optionally mlocks memory, pretouches input buffers, disables Python GC during the run, and warns on slow `ac_driver.run_inference()` calls.
 
 ### CPU vs Host/RHB Latency
@@ -130,6 +135,7 @@ samples. The Host/RHB numbers are from the packaged board traces in
 | CompletionFormer HW128 | 35.453 ms | 1492.224 ms | Runtime jitter mitigation removes the observed 1s pre-DMA outlier on the checked sample. |
 | CSPN ResNetTiny HW128 | 15.102 ms | 2121.742 ms | Accepted exact 2-load partition; remaining overhead is not PyTorch arithmetic. |
 | NLSPN HW128 | 75.116 ms | 4282.089 ms | Uses pulled remote `model_best_infer_state.pt` with strict `missing=[]`, `unexpected=[]`; 2-pack path reduces split-launch overhead. |
+| DySPN HW128 | n/a | 4145.173 ms | CPU baseline was not remeasured after the RGB contract fix; board val32 mean is reported from the accepted tailmerge7 trace. |
 
 The CPU numbers are not an accuracy comparison; they are a host-side latency
 baseline for the compiler-aligned model structures. The current RHB deployments
@@ -141,7 +147,7 @@ RHB subgraphs, persistent model loading, and fewer Host/RHB round trips.
 Additional deployment and latency notes:
 
 - `agentflow_rhb/docs/subgraph_load_reduction_status.md`: accepted Model-Packer bundle partitions and rejected all-in-one cases.
-- `agentflow_rhb/docs/inference_only_latency_breakdown.md`: load, first-run-after-switch, and steady inference accounting for the three packaged models.
+- `agentflow_rhb/docs/inference_only_latency_breakdown.md`: load, first-run-after-switch, and steady inference accounting for the packaged models.
 
 NLSPN checkpoint pullback and strict-load details are recorded in:
 
@@ -165,7 +171,7 @@ Open:
 http://127.0.0.1:8091
 ```
 
-The static demo includes the current CompletionFormer, CSPN, and NLSPN saved board-output samples, depth/error maps, latency metrics, fine-grained top-operator latency pie charts, and full `128x128 = 16384` point point-cloud data per sample. To publish it on GitHub, enable GitHub Pages from the repository `docs/` directory on this branch or after merging to `main`.
+The static demo includes the current CompletionFormer, CSPN, NLSPN, and DySPN saved board-output samples, depth/error maps, latency metrics, fine-grained top-operator latency pie charts, and full `128x128 = 16384` point point-cloud data per sample. To publish it on GitHub, enable GitHub Pages from the repository `docs/` directory on this branch or after merging to `main`.
 
 ## Web Viewer
 

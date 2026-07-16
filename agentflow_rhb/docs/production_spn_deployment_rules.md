@@ -32,6 +32,25 @@ Use this priority order:
    normalization, gate multiply, or propagation when exact decomposition is not
    proven and approximate retraining is not in scope.
 
+## Input Preprocessing Contract
+
+Preprocessing is part of the model contract, not an app-side display detail.
+The same contract must be used for calibration, software reference, ONNX export
+inputs, CModel checks, board input generation, and app visualization metadata.
+
+Current accepted contracts:
+
+- CompletionFormer HW128: ImageNet-normalized RGB.
+- CSPN HW128: unified NYU RGBD source converted by the CSPN preparation script.
+- NLSPN HW128: unified NYU RGBD source with its model-owned preprocessing.
+- DySPN HW128 epoch78: RGB in `[0,1]`; if the shared source npz stores
+  ImageNet-normalized RGB, apply `dyspn_rgb_0_1_auto_denorm` before inference.
+
+Do not promote board metrics when the reference model and board runner use
+different preprocessing. The DySPN pre-rgbfix results are explicitly stale:
+ImageNet-normalized RGB produced local val32 ref L1 `0.312655`, while the
+correct `[0,1]` contract produced `0.054300`.
+
 ## Quantization Gate
 
 Before board promotion, dump calibration32/64/128 boundary features and run:
@@ -76,7 +95,8 @@ Search loop:
 
 ## CSPN/NLSPN Notes
 
-CSPN and NLSPN should follow CompletionFormer's scale-aware runner discipline:
+CSPN, NLSPN, and DySPN should follow CompletionFormer's scale-aware runner
+discipline:
 
 - no stale ONNX or stale packer artifacts
 - no hidden runtime affine compensation
@@ -88,7 +108,10 @@ CSPN and NLSPN should follow CompletionFormer's scale-aware runner discipline:
 
 For NLSPN, current priority remains pred-init/id-decoder boundary scale and
 large-spatial high-channel Conv splitting. For CSPN, current priority is reducing
-small launches while keeping exact or checkpoint-owned semantics.
+small launches while keeping exact or checkpoint-owned semantics. For DySPN,
+current priority is reducing repeated full-resolution Conv launches while
+preserving the validated RGB `[0,1]` input contract and tailmerge7 scale
+contract.
 
 ## Remote Training Template
 

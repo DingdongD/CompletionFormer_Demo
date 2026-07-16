@@ -45,6 +45,12 @@ CSPN_VAL32_BOARD_DIR = Path(
         str(PORTABLE_DIR / "outputs" / "cspn_unified_input" / "board_outputs"),
     )
 ).resolve()
+DYSPN_VIS_ROOT = Path(
+    os.environ.get(
+        "DYSPN_VIS_ROOT",
+        "/root/demo/artifacts/visualizations/dyspn_hw128_epoch78_tailmerge7_rgbfix",
+    )
+).resolve()
 MODELS = {
     "completionformer": {
         "key": "completionformer",
@@ -76,6 +82,15 @@ MODELS = {
         "board_dir": CSPN_VAL32_BOARD_DIR,
         "run_script": None,
         "kind": "cspn",
+    },
+    "dyspn": {
+        "key": "dyspn",
+        "label": "DySPN HW128",
+        "description": "epoch78 tailmerge7 RHB deployment, RGB [0,1] contract",
+        "portable_dir": DYSPN_VIS_ROOT,
+        "vis_root": DYSPN_VIS_ROOT,
+        "run_script": None,
+        "kind": "dyspn",
     },
 }
 
@@ -122,6 +137,16 @@ def cspn_sample_paths(cfg: dict, index: int) -> dict[str, Path]:
     }
 
 
+def dyspn_sample_paths(cfg: dict, index: int) -> dict[str, Path]:
+    sample_dir = cfg["vis_root"] / f"sample{index:02d}"
+    return {
+        "vis_npz": sample_dir / "dyspn_orchestrated_board_pred_outputs.npz",
+        "board_npz": sample_dir / "work" / f"dyspn_orchestrated_board_sample{index:02d}_fd2.npz",
+        "vis_png": sample_dir / "dyspn_orchestrated_board_pred_grid.png",
+        "log": sample_dir / "work" / "board_runner.log",
+    }
+
+
 def sample_paths(model_key, index: int) -> dict:
     cfg = model_config(model_key)
     if cfg["kind"] == "completionformer":
@@ -130,6 +155,8 @@ def sample_paths(model_key, index: int) -> dict:
         return nlspn_sample_paths(cfg, index)
     if cfg["kind"] == "cspn":
         return cspn_sample_paths(cfg, index)
+    if cfg["kind"] == "dyspn":
+        return dyspn_sample_paths(cfg, index)
     raise ValueError(f"Unsupported model kind: {cfg['kind']}")
 
 
@@ -216,19 +243,36 @@ def parse_latency_metrics(log_path: Path) -> dict:
         return {}
     latencies = {}
     pattern = re.compile(r"LATENCY\s+([^:]+):\s+([0-9.]+)\s+ms")
+    summary_pattern = re.compile(r"LATENCY_SUMMARY\s+(.+?)\s+([0-9.]+)$")
+    total_pattern = re.compile(r"LATENCY_TOTAL_MS\s+([0-9.]+)")
+    wall_pattern = re.compile(r"LATENCY_WALL_MS\s+([0-9.]+)")
+    explicit_total = None
     for line in log_path.read_text(errors="replace").splitlines():
         match = pattern.search(line)
         if match:
             latencies[match.group(1).strip()] = float(match.group(2))
+            continue
+        match = summary_pattern.search(line)
+        if match:
+            latencies[match.group(1).strip()] = float(match.group(2))
+            continue
+        match = total_pattern.search(line)
+        if match:
+            explicit_total = float(match.group(1))
+            continue
+        match = wall_pattern.search(line)
+        if match:
+            latencies["wall"] = float(match.group(1))
     if not latencies:
         return {}
-    total = latencies.get("decoder_system_128x128_ckpt_tracked_total")
+    total = explicit_total or latencies.get("decoder_system_128x128_ckpt_tracked_total")
+    total_markers = {"decoder_system_128x128_ckpt_tracked_total", "wall"}
     if total is None:
-        total = sum(v for k, v in latencies.items() if k != "decoder_system_128x128_ckpt_tracked_total")
+        total = sum(v for k, v in latencies.items() if k not in total_markers)
     slowest_name = None
     slowest_ms = None
     for name, value in latencies.items():
-        if name == "decoder_system_128x128_ckpt_tracked_total":
+        if name in total_markers:
             continue
         if slowest_ms is None or value > slowest_ms:
             slowest_name = name
@@ -285,6 +329,20 @@ def load_cspn_arrays(paths):
     )
 
 
+def load_dyspn_arrays(paths):
+    if not paths["vis_npz"].exists():
+        raise FileNotFoundError(f"DySPN visualization NPZ does not exist: {paths['vis_npz']}")
+    z = np.load(paths["vis_npz"], allow_pickle=True)
+    return (
+        denorm_rgb(z["rgb"]),
+        squeeze_hw(z["dep"]),
+        squeeze_hw(z["gt"]),
+        squeeze_hw(z["ref_pred"]),
+        squeeze_hw(z["board_pred"]),
+        squeeze_hw(z["board_pred"]),
+    )
+
+
 def load_csv_metrics(path: Path, index: int) -> dict:
     if not path.exists():
         return {}
@@ -319,6 +377,8 @@ def load_sample_payload(index: int, model_key=None) -> dict:
         rgb01, dep, gt, ref_pred, board_pred, board_pred_init = load_nlspn_arrays(paths)
     elif cfg["kind"] == "cspn":
         rgb01, dep, gt, ref_pred, board_pred, board_pred_init = load_cspn_arrays(paths)
+    elif cfg["kind"] == "dyspn":
+        rgb01, dep, gt, ref_pred, board_pred, board_pred_init = load_dyspn_arrays(paths)
     else:
         raise ValueError(f"Unsupported model kind: {cfg['kind']}")
     err = np.abs(board_pred - ref_pred)
@@ -415,6 +475,8 @@ def list_samples(model_key=None) -> dict:
         count = len(list(cfg["feature_dir"].glob("sample_*.npz"))) if cfg["feature_dir"].exists() else 0
     elif cfg["kind"] == "cspn":
         count = len(list(cfg["vis_root"].glob("cspn_sample*/cspn_val*_padded16_board_pred_outputs.npz"))) if cfg["vis_root"].exists() else 0
+    elif cfg["kind"] == "dyspn":
+        count = len(list(cfg["vis_root"].glob("sample*/dyspn_orchestrated_board_pred_outputs.npz"))) if cfg["vis_root"].exists() else 0
     samples = []
     for i in range(count):
         paths = sample_paths(cfg["key"], i)

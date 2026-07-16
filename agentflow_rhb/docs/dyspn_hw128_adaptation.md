@@ -1,4 +1,4 @@
-# DySPN HW128 Compiler-aligned Adaptation, 2026-07-14
+# DySPN HW128 Compiler-aligned Adaptation, 2026-07-16
 
 ## Scope
 
@@ -44,7 +44,33 @@ Generated DySPN-specific 128x128 val32 inputs:
 /root/demo/artifacts/rhb_auto_config_framework/work/dyspn_nyu_val32_imagenet_128x128.npz
 ```
 
-DySPN reference code comments out ImageNet normalization, so the raw `[0,1]` RGB npz is the default DySPN input contract.
+DySPN reference code comments out ImageNet normalization, so raw `[0,1]`
+RGB is the default DySPN input contract. This is a hard deployment rule:
+do not feed CompletionFormer-style ImageNet-normalized RGB into DySPN
+calibration, export, software reference, or board runners.
+
+The epoch78 checkpoint was verified as the remote best checkpoint:
+
+```text
+checkpoint: model_best_slim_epoch78.pt
+epoch: 78
+remote val_l1: 0.0956265
+missing keys: 0
+unexpected keys: 0
+```
+
+The earlier poor DySPN board visualizations were traced to this preprocessing
+contract mismatch, not to a wrong checkpoint:
+
+```text
+local val32 ref L1 with ImageNet-normalized RGB: 0.312655
+local val32 ref L1 after auto-denorm to [0,1]: 0.054300
+remote dataloader first32 ref L1: 0.111965
+```
+
+The accepted runner now applies `dyspn_rgb_0_1_auto_denorm`: if a shared NYU
+npz stores ImageNet-normalized RGB, it is de-normalized and clipped to `[0,1]`
+before DySPN inference and RHB input generation.
 
 Smoke inference output:
 
@@ -113,6 +139,39 @@ Generated plans:
 /root/demo/artifacts/rhb_auto_config_framework/reports/region_plan_dyspn_test.dyspn_hw_guide.md
 ```
 
+## Current Production Board Result
+
+Accepted production profile:
+
+```text
+package: dyspn_fe3_fd2_rhbq_epoch78_rramfalse_20260716
+profile: latency_tailmerge7_ref_aligned
+preprocess: dyspn_rgb_0_1_auto_denorm
+RHB stop: fd2
+packer loads: 7
+submodel runs: 30
+rram_only: false
+```
+
+Full val32 board evaluation:
+
+```text
+board vs ref L1 mean: 0.020532
+board vs ref RMSE mean: 0.052324
+board vs gt L1 mean: 0.058010
+board vs gt RMSE mean: 0.133635
+wall latency mean: 4145.173 ms
+```
+
+Current result directory:
+
+```text
+/root/demo/artifacts/visualizations/dyspn_hw128_epoch78_tailmerge7_rgbfix/
+```
+
+All older DySPN visualizations produced before the RGB contract fix are stale
+and must not be used for accuracy comparisons.
+
 ## Current Workload Split
 
 Initial DySPN split:
@@ -131,11 +190,10 @@ Host:
 
 ## Next Step
 
-To complete board-grade DySPN deployment:
+The deployment is board-grade for the current compiler-aligned epoch78
+checkpoint. Remaining optimization work is latency-oriented:
 
-1. Train or fetch a `DYSPN_HW_CKPT` for this compiler-aligned architecture.
-2. Generate stage/decoder/head split modules from the `deployment_graph_dyspn_test.dyspn_hw_guide` plan.
-3. Validate each Conv region with compile/CModel/board, using strict all-RHB Conv post behavior.
-4. Build a DySPN board runner equivalent to the NLSPN runner:
-   Host resize/concat/add -> RHB Conv bundle -> Host DySPN propagation.
-5. Run val32 NYU visualizations from `dyspn_nyu_val32_raw_128x128.npz`.
+1. Reduce repeated full-resolution Conv launches without changing the validated
+   Host/RHB scale contract.
+2. Search larger exact packer bundles under the 8MB RHB limit.
+3. Promote only candidates that match or improve the rgbfix val32 board metrics.

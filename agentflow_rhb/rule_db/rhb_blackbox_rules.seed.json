@@ -32,6 +32,17 @@
       "risk": "high"
     },
     {
+      "id": "input.preprocess.model_owned_contract",
+      "kind": "input_contract",
+      "pattern": "shared NYU RGBD samples reused across model families",
+      "compile_status": "n/a",
+      "board_status": "pass_after_contract_match",
+      "decision": "require",
+      "action": "apply the model-owned RGB/depth preprocessing before calibration, reference inference, ONNX input generation, board input generation, and app export; DySPN epoch78 requires RGB in [0,1] and must auto-denormalize ImageNet-normalized shared npz inputs",
+      "evidence": "DySPN epoch78 local val32 ref L1 was 0.312655 with CompletionFormer ImageNet RGB, but 0.054300 after dyspn_rgb_0_1_auto_denorm; board val32 rgbfix board-vs-ref L1 mean is 0.020532",
+      "risk": "high"
+    },
+    {
       "id": "runtime.single_output_submodel",
       "kind": "runtime",
       "pattern": "RHB submodel with multiple output tensors",

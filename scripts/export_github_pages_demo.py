@@ -18,6 +18,9 @@ NLSPN_WORK_ROOT = Path(
 )
 NLSPN_FEATURE_ROOT = NLSPN_WORK_ROOT / "val32_features"
 NLSPN_BOARD_ROOT = NLSPN_WORK_ROOT / "val32_fix_predinit_guidance_outfit_outputs"
+DYSPN_VIS_ROOT = Path(
+    "/root/demo/artifacts/visualizations/dyspn_hw128_epoch78_tailmerge7_rgbfix"
+)
 CSPN_LOG = Path(
     "/root/demo/artifacts/rhb_auto_config_framework/work/deployment_packages/"
     "cspn_resnettiny_hw128_w24_step8_stagewise_v3_hostsample/"
@@ -42,6 +45,10 @@ MODEL_LATENCY_SUMMARY = {
         "stable_latency_ms": 4282.089,
         "latency_label": "median of accepted 2-pack exact runs",
         "cpu_mean_ms": 75.116,
+    },
+    "dyspn": {
+        "stable_latency_ms": 4145.173,
+        "latency_label": "val32 mean, tailmerge7 packer, RGB [0,1] contract",
     },
 }
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -364,6 +371,73 @@ def export_nlspn_sample(feature_npz: Path) -> dict:
     return meta
 
 
+def export_dyspn_sample(npz_path: Path) -> dict:
+    idx = sample_index(npz_path.parent)
+    out_dir = OUT_ROOT / f"dyspn_sample{idx}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    z = np.load(npz_path, allow_pickle=True)
+    rgb = denorm_rgb(z["rgb"])
+    dep = squeeze_hw(z["dep"])
+    gt = squeeze_hw(z["gt"])
+    ref_pred = squeeze_hw(z["ref_pred"])
+    board_pred = squeeze_hw(z["board_pred"])
+    board_pred_init = board_pred
+    err = np.abs(board_pred - ref_pred)
+    depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
+    depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
+    sparse_vis = np.where(dep > 0, dep, np.nan)
+
+    images = {
+        "rgb": "rgb.png",
+        "sparse_depth": "sparse_depth.png",
+        "gt": "gt.png",
+        "ref_pred": "ref_pred.png",
+        "board_pred": "board_pred.png",
+        "abs_error": "abs_error.png",
+    }
+    save_rgb(out_dir / images["rgb"], rgb)
+    save_map(out_dir / images["sparse_depth"], sparse_vis, depth_vmin, depth_vmax)
+    save_map(out_dir / images["gt"], gt, depth_vmin, depth_vmax)
+    save_map(out_dir / images["ref_pred"], ref_pred, depth_vmin, depth_vmax)
+    save_map(out_dir / images["board_pred"], board_pred, depth_vmin, depth_vmax)
+    save_map(out_dir / images["abs_error"], err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma")
+
+    metrics = {
+        "abs_mean": float(np.nanmean(err)),
+        "abs_p95": float(np.nanpercentile(err, 95)),
+        "abs_max": float(np.nanmax(err)),
+        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "ref_min": float(np.nanmin(ref_pred)),
+        "ref_max": float(np.nanmax(ref_pred)),
+        "board_min": float(np.nanmin(board_pred)),
+        "board_max": float(np.nanmax(board_pred)),
+        "board_init_min": float(np.nanmin(board_pred_init)),
+        "board_init_max": float(np.nanmax(board_pred_init)),
+        "vs_gt_l1": float(np.asarray(z["vs_gt_l1"]).reshape(-1)[0]),
+        "vs_gt_rmse": float(np.asarray(z["vs_gt_rmse"]).reshape(-1)[0]),
+        "preprocess": "dyspn_rgb_0_1_auto_denorm",
+        "runtime_mitigation": "tailmerge7 exact packer partition + clear_wr_done",
+    }
+    board_log = npz_path.parent / "work" / "board_runner.log"
+    metrics.update(parse_latency(board_log))
+
+    pc_path = out_dir / "point_cloud.json"
+    pc_path.write_text(json.dumps(point_cloud(rgb, board_pred), separators=(",", ":")))
+    meta = {
+        "id": f"dyspn:{idx}",
+        "index": idx,
+        "model": "dyspn",
+        "title": f"DySPN sample {idx}",
+        "base": f"data/dyspn_sample{idx}",
+        "images": images,
+        "point_cloud": "point_cloud.json",
+        "metrics": metrics,
+        "source_npz": str(npz_path),
+    }
+    (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+    return meta
+
+
 def main() -> None:
     if OUT_ROOT.exists():
         shutil.rmtree(OUT_ROOT)
@@ -381,14 +455,17 @@ def main() -> None:
     samples.extend(export_cspn_sample(p) for p in cspn_npzs)
     nlspn_npzs = sorted(NLSPN_FEATURE_ROOT.glob("sample_*.npz"), key=nlspn_index)
     samples.extend(export_nlspn_sample(p) for p in nlspn_npzs)
+    dyspn_npzs = sorted(DYSPN_VIS_ROOT.glob("sample*/dyspn_orchestrated_board_pred_outputs.npz"), key=lambda p: sample_index(p.parent))
+    samples.extend(export_dyspn_sample(p) for p in dyspn_npzs)
     manifest = {
         "name": "RHB board depth demo",
-        "generated_from": "CompletionFormer outputs/sample*/ plus CSPN unified and NLSPN split-dec5 val32 board outputs",
+        "generated_from": "CompletionFormer, CSPN, NLSPN, and DySPN val32 board outputs",
         "point_cloud_sampling": "stride=1 full 128x128 board_pred points",
         "models": [
             {"id": "completionformer", "name": "CompletionFormer HW128", **MODEL_LATENCY_SUMMARY["completionformer"]},
             {"id": "cspn", "name": "CSPN ResNetTiny HW128", **MODEL_LATENCY_SUMMARY["cspn"]},
             {"id": "nlspn", "name": "NLSPN HW128", **MODEL_LATENCY_SUMMARY["nlspn"]},
+            {"id": "dyspn", "name": "DySPN HW128", **MODEL_LATENCY_SUMMARY["dyspn"]},
         ],
         "samples": [
             {
