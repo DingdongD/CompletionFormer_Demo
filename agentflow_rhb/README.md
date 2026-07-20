@@ -30,18 +30,32 @@ The original `/root/demo/artifacts/rhb_auto_config_framework/...` commands
 below are preserved for the lab machine where the full generated workspace
 exists.
 
-Current three-model deployment reports:
+Current deployment reports:
 
 - `docs/subgraph_load_reduction_status.md`: CompletionFormer/CSPN/NLSPN bundle partition status, accepted packers, and rejected candidates.
 - `docs/inference_only_latency_breakdown.md`: CPU vs Host/RHB latency context, load timing, packer switch first-run timing, and steady inference bottlenecks.
 - `docs/nlspn_fullres_launch_reduction.md`: NLSPN 128x128 full-resolution fusion probes, strict all-RHB head default, and optional Host-post latency experiment.
 - `docs/dyspn_hw128_adaptation.md`: DySPN HW128 compiler-aligned scaffold, NYU Depth V2 adapter, and first RHB board probe.
+- `docs/sdformer_hw128_adaptation.md`: SDFormer strict window-attention failure analysis and retrain-required Conv3x3 mixer replacement path.
 
 DySPN status:
 
 - `dyspn_test.dyspn_hw_offset_aff_compile_probe` passes compile/CModel/packer/board with `All same: True`.
 - Full `dyspn_hw_guide` exports to ONNX but still needs Host resize/concat/add + RHB Conv partitioning because the current compiler path rejects nearest `Resize`.
 - A trained HW-aligned checkpoint is required before end-to-end board validation because ConvTranspose-style decoder behavior is replaced by Host resize + Conv compiler-aligned glue.
+
+SDFormer status:
+
+- Strict window attention is not RHB-safe today. Exact tokenized decomposition is numerically correct in PyTorch, but batched token layouts fail compile/CModel and one-window BWC probes hit board layout/runtime failures.
+- The accepted production direction is `agentflow_rhb/training/sdformer_aligned_hw/sdformer_aligned_hw.py`, which replaces window attention and FFN cores with RHB-proven Conv3x3 mixers and requires retraining.
+- Deployment plan exporter:
+
+```bash
+python agentflow_rhb/scripts/export_sdformer_aligned_hw_deployment_plan.py
+```
+
+The current plan has 91 RHB launches and uses output-channel split for every
+`72->72 @128x128` mixer.
 
 NLSPN strict semantic validation entrypoint on the lab machine:
 

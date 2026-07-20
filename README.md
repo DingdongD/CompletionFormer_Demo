@@ -23,7 +23,7 @@ agentflow_rhb/
 ```
 
 It packages the rule database and automation used to generalize the
-CompletionFormer deployment flow to CSPN, NLSPN, and DySPN:
+CompletionFormer deployment flow to CSPN, NLSPN, DySPN, and SDFormer:
 
 - ONNX graph import, annotation, layout risk analysis, and deep-search planning
 - exact compiler-aligned rewrite contracts such as IC/OC split and pad/slice
@@ -31,6 +31,8 @@ CompletionFormer deployment flow to CSPN, NLSPN, and DySPN:
 - software-side int8 outlier, saturation, kurtosis, and boundary-scale diagnostics
 - SSH remote training templates for aligned checkpoints
 - compile/CModel/Model-Packer/board-run wrappers for the lab environment
+- retrain-required hardware-aligned model replacements when strict semantics
+  cannot be compiled or board-validated
 
 Quick smoke commands:
 
@@ -111,6 +113,7 @@ Current published sample summary from `docs/data/manifest.json`:
 | CSPN ResNetTiny HW128 | 32 | 0.1089 | 0.1479 | stable `2121.742 ms` / latest trace `2197.879 ms` | Accepted exact 2-load Model-Packer partition; residual cost is launch/load plus RHB conv blocks |
 | NLSPN HW128 | 32 | 0.0779 | 0.1456 | stable `4282.089 ms` / latest trace `4095.602 ms` | Accepted 2-pack decoder partition; dec5/dec4/rest still dominate launch and board compute |
 | DySPN HW128 | 32 | 0.0205 | 0.0523 | val32 mean `4145.173 ms` | Tailmerge7 RHB packer partition; latency is dominated by repeated packer load/switch rather than final Host propagation |
+| SDFormer HW128 aligned | pending retrain | pending | pending | planned 91 RHB launches | Strict window attention is not board-accepted; production path is retrain-required Conv3x3 mixer replacement |
 
 The bottleneck interpretation is:
 
@@ -122,6 +125,29 @@ The bottleneck interpretation is:
   when consuming the shared CompletionFormer NYU npz. Older DySPN outputs made
   before this fix are stale and should not be used for accuracy comparisons.
 - CompletionFormer runtime outliers were traced to Host/runtime jitter before DMA submission, not NPU arithmetic. The runner now locks CPU frequency, optionally mlocks memory, pretouches input buffers, disables Python GC during the run, and warns on slow `ac_driver.run_inference()` calls.
+
+### SDFormer Probe Status
+
+SDFormer is tracked as a new AgentFlow case:
+
+```text
+agentflow_rhb/examples/sdformer_hw128_probe_case.json
+agentflow_rhb/docs/sdformer_hw128_adaptation.md
+```
+
+Current board probes show that SDFormer can use RHB for stem Conv/ReLU,
+pointwise attention/FFN Conv, down/up pre-shuffle Conv, and exact final-head
+input-channel chunks. Strict Host fallback is still required for LayerNorm,
+window attention, softmax, PixelShuffle/PixelUnshuffle, GELU/gate multiply, and
+depthwise group Conv. The local SDFormer tree does not currently include a
+checkpoint, so this is a deployability boundary and retraining plan, not an
+accepted task-accuracy demo yet.
+
+The generated SDFormer HW128 Conv matrix now covers 66 candidate submodels and
+all 66 complete ONNX export, compile, and CModel with return code 0. The
+orchestrated skeleton emits a full Host/RHB allocation trace with 112
+single-output RHB Conv launches plus Host fallbacks for unsupported transformer
+glue.
 
 ### CPU vs Host/RHB Latency
 

@@ -1,0 +1,76 @@
+{
+  "case_name": "sdformer_hw128_probe",
+  "model_family": "SDFormer Depth Completion HW128 probe",
+  "input_shape": [1, 4, 128, 128],
+  "source_root": "/root/demo/SDformer-for-Depth-Completion",
+  "source_models_root": "/root/demo/SDformer-for-Depth-Completion/src/model",
+  "checkpoint": null,
+  "representative_data": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/data/nyu_val32_source_128x128.npz",
+  "deployment_goal": "strict Host/RHB split for SDFormer at 128x128 with board-proven Conv subgraphs and Host fallback for unsupported transformer/window/depthwise glue",
+  "accepted_rhb_submodels": [
+    "stem_rgb_relu_128: RGB Conv3x3+ReLU 3->18, board All same=True",
+    "stem_dep_relu_128: depth Conv3x3+ReLU 1->6, board All same=True",
+    "down_conv_l1_128: Downsample pre-PixelUnshuffle Conv3x3 24->12, board All same=True",
+    "up_conv_l4_16: Upsample pre-PixelShuffle Conv3x3 192->384, board All same=True",
+    "attn_qkv_only_l1_128: attention qkv Conv1x1 24->72, board All same=True",
+    "attn_project_l1_128: attention project_out Conv1x1 24->24, board All same=True",
+    "ffn_project_out_l1_128: FFN project_out Conv1x1 69->24, board All same=True",
+    "final_head_chunk16_padded8_128: exact final-head input-channel split chunk, board All same=True"
+  ],
+  "host_ops": [
+    "RGB/depth concat after stem",
+    "LayerNorm",
+    "window partition/rearrange",
+    "L2 normalize",
+    "attention matmul and softmax",
+    "attention split/cat",
+    "depthwise qkv_dwconv and FFN dwconv for strict no-retrain path",
+    "FFN chunk, GELU, tensor-tensor multiply",
+    "PixelUnshuffle and PixelShuffle",
+    "skip concat/crop glue",
+    "residual add",
+    "final-head partial output sum and clamp/ReLU",
+    "scale-aware dequant/requant between RHB boundaries"
+  ],
+  "forbidden_patterns": [
+    "direct full SDFormer graph on RHB",
+    "depthwise group Conv inside RHB without fresh board-pass proof",
+    "single 24->138 or padded144 FFN project_in RHB package",
+    "GELU or tensor-tensor gate multiply inside RHB without retraining/validation",
+    "softmax/window attention inside RHB without exact board validation",
+    "PixelShuffle/PixelUnshuffle inside RHB package",
+    "multi-output RHB submodel",
+    "rram_only=true"
+  ],
+  "board_probe_outputs": {
+    "root": "/root/demo/artifacts/output_sdformer_probe_20260717",
+    "summary": [
+      "/root/demo/artifacts/output_sdformer_probe_20260717/board_probe_summary2.tsv",
+      "/root/demo/artifacts/output_sdformer_probe_20260717/depthwise_localize_board.tsv"
+    ]
+  },
+  "generated_compile_matrix": {
+    "module_root": "/root/demo/models/sdformer_test/generated",
+    "generator": "agentflow_rhb/scripts/generate_sdformer_hw128_probe_modules.py",
+    "runner": "agentflow_rhb/scripts/run_sdformer_hw128_compile_matrix.sh",
+    "latest_output_root": "/root/demo/artifacts/output_sdformer_hw128_generated_compile_20260720",
+    "latest_summary": "/root/demo/artifacts/output_sdformer_hw128_generated_compile_20260720/compile_cmodel_summary.tsv",
+    "modules": 66,
+    "onnx_export_pass": 66,
+    "compile_pass": 66,
+    "cmodel_pass": 66,
+    "return_code_failures": 0
+  },
+  "orchestrated_runner": {
+    "script": "agentflow_rhb/scripts/run_sdformer_hw128_orchestrated.py",
+    "latest_output_root": "/root/demo/artifacts/output_sdformer_hw128_orchestrated_20260720",
+    "latest_output_npz": "/root/demo/artifacts/output_sdformer_hw128_orchestrated_20260720/sdformer_hw128_orchestrated_outputs.npz",
+    "latest_schedule_json": "/root/demo/artifacts/output_sdformer_hw128_orchestrated_20260720/sdformer_hw128_orchestrated_schedule.json",
+    "output_shape": [1, 1, 128, 128]
+  },
+  "notes": [
+    "The upstream SDFormer repository currently has no checkpoint under /root/demo/SDformer-for-Depth-Completion, so end-to-end prediction quality cannot be validated yet.",
+    "The original NYU config is 228x304. HW128 is a deployment-aligned variant; window sizes must divide each stage resolution if retraining at 128x128.",
+    "For strict pretrained SDFormer semantics, use Host fallback for depthwise/group/window/nonlinear glue. For latency-first deployment, train a hardware-aligned SDFormer variant replacing depthwise/GELU-heavy blocks with board-proven Conv/ReLU blocks."
+  ]
+}
