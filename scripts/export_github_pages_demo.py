@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import json
 import re
 import shutil
@@ -174,6 +176,35 @@ def point_cloud(rgb01: np.ndarray, depth: np.ndarray) -> dict:
     }
 
 
+def board_output_metrics(ref_pred: np.ndarray, board_pred: np.ndarray, gt: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
+    board_ref_err = np.abs(board_pred - ref_pred)
+    metrics = {
+        "output_contract": "board_pred is the final displayed/runtime output; ref_pred is comparison-only",
+        "error_image_mode": "board_vs_ref",
+        "abs_mean": float(np.nanmean(board_ref_err)),
+        "abs_p95": float(np.nanpercentile(board_ref_err, 95)),
+        "abs_max": float(np.nanmax(board_ref_err)),
+        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "board_ref_abs_mean": float(np.nanmean(board_ref_err)),
+        "board_ref_abs_p95": float(np.nanpercentile(board_ref_err, 95)),
+        "board_ref_abs_max": float(np.nanmax(board_ref_err)),
+        "board_ref_rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "ref_min": float(np.nanmin(ref_pred)),
+        "ref_max": float(np.nanmax(ref_pred)),
+        "board_min": float(np.nanmin(board_pred)),
+        "board_max": float(np.nanmax(board_pred)),
+    }
+    if gt is not None:
+        board_gt_err = np.abs(board_pred - gt)
+        metrics.update({
+            "board_gt_l1": float(np.nanmean(board_gt_err)),
+            "board_gt_abs_p95": float(np.nanpercentile(board_gt_err, 95)),
+            "board_gt_abs_max": float(np.nanmax(board_gt_err)),
+            "board_gt_rmse": float(np.sqrt(np.nanmean((board_pred - gt) ** 2))),
+        })
+    return board_ref_err, metrics
+
+
 def export_sample(npz_path: Path) -> dict:
     idx = sample_index(npz_path)
     out_dir = OUT_ROOT / f"sample{idx}"
@@ -185,7 +216,7 @@ def export_sample(npz_path: Path) -> dict:
     ref_pred = squeeze_hw(z["ref_pred"])
     board_pred = squeeze_hw(z["board_pred"])
     board_pred_init = squeeze_hw(z["board_pred_init"])
-    err = np.abs(board_pred - ref_pred)
+    err, metrics = board_output_metrics(ref_pred, board_pred, gt)
     depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
     depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
     sparse_vis = np.where(dep > 0, dep, np.nan)
@@ -205,19 +236,11 @@ def export_sample(npz_path: Path) -> dict:
     save_map(out_dir / images["board_pred"], board_pred, depth_vmin, depth_vmax)
     save_map(out_dir / images["abs_error"], err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma")
 
-    metrics = {
-        "abs_mean": float(np.nanmean(err)),
-        "abs_p95": float(np.nanpercentile(err, 95)),
-        "abs_max": float(np.nanmax(err)),
-        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
-        "ref_min": float(np.nanmin(ref_pred)),
-        "ref_max": float(np.nanmax(ref_pred)),
-        "board_min": float(np.nanmin(board_pred)),
-        "board_max": float(np.nanmax(board_pred)),
+    metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
         "runtime_mitigation": "max_cpu_freq + mlockall + input_pretouch + gc_disabled",
-    }
+    })
     metrics.update(parse_latency(npz_path.parent / f"board_val{idx}_convonlycf_hostsigmoid.log"))
 
     pc_path = out_dir / "point_cloud.json"
@@ -251,7 +274,7 @@ def export_cspn_sample(npz_path: Path) -> dict:
     ref_pred = squeeze_hw(z["ref_pred"])
     board_pred = squeeze_hw(z["board_pred"])
     board_pred_init = squeeze_hw(z["board_raw"]) if "board_raw" in z.files else board_pred
-    err = np.abs(board_pred - ref_pred)
+    err, metrics = board_output_metrics(ref_pred, board_pred, gt)
     depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
     depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
     sparse_vis = np.where(dep > 0, dep, np.nan)
@@ -271,19 +294,11 @@ def export_cspn_sample(npz_path: Path) -> dict:
     save_map(out_dir / images["board_pred"], board_pred, depth_vmin, depth_vmax)
     save_map(out_dir / images["abs_error"], err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma")
 
-    metrics = {
-        "abs_mean": float(np.nanmean(err)),
-        "abs_p95": float(np.nanpercentile(err, 95)),
-        "abs_max": float(np.nanmax(err)),
-        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
-        "ref_min": float(np.nanmin(ref_pred)),
-        "ref_max": float(np.nanmax(ref_pred)),
-        "board_min": float(np.nanmin(board_pred)),
-        "board_max": float(np.nanmax(board_pred)),
+    metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
         "runtime_mitigation": "2-load exact Model-Packer partition",
-    }
+    })
     metrics.update(parse_latency(CSPN_LOG))
 
     pc_path = out_dir / "point_cloud.json"
@@ -318,7 +333,7 @@ def export_nlspn_sample(feature_npz: Path) -> dict:
     ref_pred = squeeze_hw(feat["ref_pred"])
     board_pred = squeeze_hw(board["pred"])
     board_pred_init = squeeze_hw(board["pred_init"])
-    err = np.abs(board_pred - ref_pred)
+    err, metrics = board_output_metrics(ref_pred, board_pred, gt)
     depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
     depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
     sparse_vis = np.where(dep > 0, dep, np.nan)
@@ -338,19 +353,11 @@ def export_nlspn_sample(feature_npz: Path) -> dict:
     save_map(out_dir / images["board_pred"], board_pred, depth_vmin, depth_vmax)
     save_map(out_dir / images["abs_error"], err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma")
 
-    metrics = {
-        "abs_mean": float(np.nanmean(err)),
-        "abs_p95": float(np.nanpercentile(err, 95)),
-        "abs_max": float(np.nanmax(err)),
-        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
-        "ref_min": float(np.nanmin(ref_pred)),
-        "ref_max": float(np.nanmax(ref_pred)),
-        "board_min": float(np.nanmin(board_pred)),
-        "board_max": float(np.nanmax(board_pred)),
+    metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
         "runtime_mitigation": "2-pack dec5+dec4/rest Model-Packer partition",
-    }
+    })
     metrics.update(parse_latency(NLSPN_LOG))
 
     pc_path = out_dir / "point_cloud.json"
@@ -382,7 +389,7 @@ def export_dyspn_sample(npz_path: Path) -> dict:
     ref_pred = squeeze_hw(z["ref_pred"])
     board_pred = squeeze_hw(z["board_pred"])
     board_pred_init = board_pred
-    err = np.abs(board_pred - ref_pred)
+    err, metrics = board_output_metrics(ref_pred, board_pred, gt)
     depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
     depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
     sparse_vis = np.where(dep > 0, dep, np.nan)
@@ -402,22 +409,14 @@ def export_dyspn_sample(npz_path: Path) -> dict:
     save_map(out_dir / images["board_pred"], board_pred, depth_vmin, depth_vmax)
     save_map(out_dir / images["abs_error"], err, 0.0, max(0.1, float(np.nanpercentile(err, 99))), "magma")
 
-    metrics = {
-        "abs_mean": float(np.nanmean(err)),
-        "abs_p95": float(np.nanpercentile(err, 95)),
-        "abs_max": float(np.nanmax(err)),
-        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
-        "ref_min": float(np.nanmin(ref_pred)),
-        "ref_max": float(np.nanmax(ref_pred)),
-        "board_min": float(np.nanmin(board_pred)),
-        "board_max": float(np.nanmax(board_pred)),
+    metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
         "vs_gt_l1": float(np.asarray(z["vs_gt_l1"]).reshape(-1)[0]),
         "vs_gt_rmse": float(np.asarray(z["vs_gt_rmse"]).reshape(-1)[0]),
         "preprocess": "dyspn_rgb_0_1_auto_denorm",
         "runtime_mitigation": "tailmerge7 exact packer partition + clear_wr_done",
-    }
+    })
     board_log = npz_path.parent / "work" / "board_runner.log"
     metrics.update(parse_latency(board_log))
 

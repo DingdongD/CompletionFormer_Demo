@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import base64
 import csv
@@ -176,6 +178,35 @@ def squeeze_hw(arr: np.ndarray) -> np.ndarray:
     while arr.ndim > 2:
         arr = arr[0]
     return arr.astype(np.float32)
+
+
+def board_output_metrics(ref_pred: np.ndarray, board_pred: np.ndarray, gt: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
+    board_ref_err = np.abs(board_pred - ref_pred)
+    metrics = {
+        "output_contract": "board_pred is the final displayed/runtime output; ref_pred is comparison-only",
+        "error_image_mode": "board_vs_ref",
+        "abs_mean": float(np.nanmean(board_ref_err)),
+        "abs_p95": float(np.nanpercentile(board_ref_err, 95)),
+        "abs_max": float(np.nanmax(board_ref_err)),
+        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "board_ref_abs_mean": float(np.nanmean(board_ref_err)),
+        "board_ref_abs_p95": float(np.nanpercentile(board_ref_err, 95)),
+        "board_ref_abs_max": float(np.nanmax(board_ref_err)),
+        "board_ref_rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
+        "ref_min": float(np.nanmin(ref_pred)),
+        "ref_max": float(np.nanmax(ref_pred)),
+        "board_min": float(np.nanmin(board_pred)),
+        "board_max": float(np.nanmax(board_pred)),
+    }
+    if gt is not None:
+        board_gt_err = np.abs(board_pred - gt)
+        metrics.update({
+            "board_gt_l1": float(np.nanmean(board_gt_err)),
+            "board_gt_abs_p95": float(np.nanpercentile(board_gt_err, 95)),
+            "board_gt_abs_max": float(np.nanmax(board_gt_err)),
+            "board_gt_rmse": float(np.sqrt(np.nanmean((board_pred - gt) ** 2))),
+        })
+    return board_ref_err, metrics
 
 
 def png_data_uri_rgb(rgb01: np.ndarray) -> str:
@@ -381,22 +412,14 @@ def load_sample_payload(index: int, model_key=None) -> dict:
         rgb01, dep, gt, ref_pred, board_pred, board_pred_init = load_dyspn_arrays(paths)
     else:
         raise ValueError(f"Unsupported model kind: {cfg['kind']}")
-    err = np.abs(board_pred - ref_pred)
+    err, metrics = board_output_metrics(ref_pred, board_pred, gt)
     depth_vmin = float(min(np.nanpercentile(ref_pred, 1), np.nanpercentile(board_pred, 1)))
     depth_vmax = float(max(np.nanpercentile(ref_pred, 99), np.nanpercentile(board_pred, 99)))
     sparse_vis = np.where(dep > 0, dep, np.nan)
-    metrics = {
-        "abs_mean": float(np.nanmean(err)),
-        "abs_p95": float(np.nanpercentile(err, 95)),
-        "abs_max": float(np.nanmax(err)),
-        "rmse": float(np.sqrt(np.nanmean((board_pred - ref_pred) ** 2))),
-        "ref_min": float(np.nanmin(ref_pred)),
-        "ref_max": float(np.nanmax(ref_pred)),
-        "board_min": float(np.nanmin(board_pred)),
-        "board_max": float(np.nanmax(board_pred)),
+    metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
-    }
+    })
     metrics.update(parse_latency_metrics(paths["log"]))
     if cfg.get("metrics_csv"):
         metrics.update(load_csv_metrics(cfg["metrics_csv"], index))

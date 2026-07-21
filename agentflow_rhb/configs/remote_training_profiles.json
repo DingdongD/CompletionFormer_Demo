@@ -85,26 +85,6 @@
         "metadata.json",
         "log_train.txt"
       ]
-    },
-    "sdformer_aligned_hw128": {
-      "description": "SDFormer 128x128 retrain-required hardware-aligned model with Conv3x3 mixers replacing window attention and FFN cores.",
-      "remote_cwd": "/workspace/CSPN/cspn_pytorch",
-      "remote_stage_dir": "/workspace/CSPN/cspn_pytorch/agentflow_training/sdformer_aligned_hw128",
-      "remote_output_dir": "/workspace/CSPN/cspn_pytorch/output/agentflow_sdformer_aligned_hw128",
-      "local_fetch_dir": "/root/demo/artifacts/rhb_auto_config_framework/remote_ckpts/sdformer_aligned_hw128",
-      "stage_files": [
-        {
-          "local": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/agentflow_rhb",
-          "remote": "agentflow_rhb"
-        }
-      ],
-      "train_command": "python {remote_stage_dir}/agentflow_rhb/training/train_sdformer_aligned_hw.py --repo-root {remote_cwd} --data-root {remote_cwd} --portable-runtime {remote_stage_dir} --train-list {remote_cwd}/datalist/nyudepth_hdf5_train.csv --eval-list {remote_cwd}/datalist/nyudepth_hdf5_val.csv --save-dir {remote_output_dir} --image-size 128 --epochs 80 --batch-size 8 --val-batch-size 8 --workers 8 --lr 3e-4 --scheduler-step 35 --scheduler-gamma 0.5 --n-sample 500 --subset 0 --val-subset 512 --data-parallel",
-      "ckpt_patterns": [
-        "model_best.pt",
-        "model_latest.pt",
-        "metadata.json",
-        "log_train.txt"
-      ]
     }
   }
 }

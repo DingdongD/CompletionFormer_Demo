@@ -225,12 +225,18 @@ function renderSample(payload) {
   pathLine.textContent = `${payload.model.label}: ${payload.paths.vis_npz}`;
   const metricRows = [
     metricRow("model", payload.model.label),
-    metricRow("abs mean", payload.metrics.abs_mean),
-    metricRow("abs p95", payload.metrics.abs_p95),
-    metricRow("rmse", payload.metrics.rmse),
+    metricRow("output", "board_pred"),
+    metricRow("error mode", payload.metrics.error_image_mode || "board_vs_ref"),
+    metricRow("board-ref L1", payload.metrics.board_ref_abs_mean ?? payload.metrics.abs_mean),
+    metricRow("board-ref p95", payload.metrics.board_ref_abs_p95 ?? payload.metrics.abs_p95),
+    metricRow("board-ref RMSE", payload.metrics.board_ref_rmse ?? payload.metrics.rmse),
     metricRow("board min", payload.metrics.board_min),
     metricRow("board max", payload.metrics.board_max),
   ];
+  if (payload.metrics.board_gt_l1 !== undefined) {
+    metricRows.push(metricRow("board-gt L1", payload.metrics.board_gt_l1));
+    metricRows.push(metricRow("board-gt RMSE", payload.metrics.board_gt_rmse));
+  }
   if (payload.metrics.latency_total_ms !== undefined) {
     metricRows.push(metricRow("latency ms", payload.metrics.latency_total_ms));
     metricRows.push(metricRow("slowest ms", payload.metrics.latency_slowest_ms));

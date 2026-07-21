@@ -276,8 +276,8 @@ function aggregateBottleneck(samples) {
 function renderModelSummary() {
   const cards = (manifest.models || []).map(model => {
     const samples = samplesForModel(model.id);
-    const avgAbs = mean(samples.map(s => s.metrics?.abs_mean));
-    const avgRmse = mean(samples.map(s => s.metrics?.rmse));
+    const avgAbs = mean(samples.map(s => s.metrics?.board_ref_abs_mean ?? s.metrics?.abs_mean));
+    const avgRmse = mean(samples.map(s => s.metrics?.board_ref_rmse ?? s.metrics?.rmse));
     const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
     const stableLatency = typeof model.stable_latency_ms === "number" ? model.stable_latency_ms : avgLatency;
     const cpuMean = typeof model.cpu_mean_ms === "number" ? model.cpu_mean_ms : undefined;
@@ -287,7 +287,7 @@ function renderModelSummary() {
     card.innerHTML = `
       <strong>${model.name}</strong>
       <span>${samples.length} board samples</span>
-      <span>L1 ${fmt(avgAbs, 4)} / RMSE ${fmt(avgRmse, 4)}</span>
+      <span>board-ref L1 ${fmt(avgAbs, 4)} / RMSE ${fmt(avgRmse, 4)}</span>
       <span>stable lat ${stableLatency === undefined ? "n/a" : fmtMs(stableLatency)} · ${speed}</span>
       <span>${escapeHtml(model.latency_label || "sample trace mean")} </span>
       <span>${aggregateBottleneck(samples)}</span>
@@ -299,12 +299,18 @@ function renderModelSummary() {
 
 function renderMetrics(metrics) {
   const rows = [
-    metricRow("abs mean", metrics.abs_mean),
-    metricRow("abs p95", metrics.abs_p95),
-    metricRow("rmse", metrics.rmse),
+    metricRow("output", "board_pred"),
+    metricRow("error mode", metrics.error_image_mode || "board_vs_ref"),
+    metricRow("board-ref L1", metrics.board_ref_abs_mean ?? metrics.abs_mean),
+    metricRow("board-ref p95", metrics.board_ref_abs_p95 ?? metrics.abs_p95),
+    metricRow("board-ref RMSE", metrics.board_ref_rmse ?? metrics.rmse),
     metricRow("board min", metrics.board_min),
     metricRow("board max", metrics.board_max),
   ];
+  if (metrics.board_gt_l1 !== undefined) {
+    rows.push(metricRow("board-gt L1", metrics.board_gt_l1));
+    rows.push(metricRow("board-gt RMSE", metrics.board_gt_rmse));
+  }
   if (metrics.latency_total_ms !== undefined) {
     rows.push(metricRow("latency ms", metrics.latency_total_ms));
     rows.push(metricRow("slowest ms", metrics.latency_slowest_ms));
@@ -519,7 +525,8 @@ function renderSampleOptions() {
   for (const sample of samples) {
     const opt = document.createElement("option");
     opt.value = sample.id || sample.index;
-    opt.textContent = `${sample.title} | abs ${sample.metrics.abs_mean.toFixed(4)}`;
+    const boardRef = sample.metrics.board_ref_abs_mean ?? sample.metrics.abs_mean;
+    opt.textContent = `${sample.title} | board-ref ${boardRef.toFixed(4)}`;
     sampleSelect.appendChild(opt);
   }
   const avgLatency = mean(samples.map(s => s.metrics?.latency_total_ms));
