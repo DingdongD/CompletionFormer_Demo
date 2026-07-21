@@ -8,27 +8,500 @@
       "name": "CompletionFormer HW128",
       "stable_latency_ms": 1492.224,
       "latency_label": "sample0 rerun with max CPU freq, mlockall, input pretouch, and GC disabled",
-      "cpu_mean_ms": 35.453
+      "cpu_mean_ms": 35.453,
+      "cpu_latency_label": "Host CPU PyTorch end-to-end baseline, 5 samples, 4 threads",
+      "cpu_benchmark": {
+        "device": "local_host_cpu",
+        "framework": "PyTorch compiler-aligned model",
+        "input": "NYU val 128x128, batch=1",
+        "samples": 5,
+        "threads": 4,
+        "mean_ms": 35.452728,
+        "median_ms": 35.369701,
+        "p95_ms": 36.149677,
+        "source": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/reports/cpu_vs_rhb_latency_20260714.json"
+      },
+      "model_size": {
+        "param_count": 1184870,
+        "trainable_param_count": 1184859,
+        "buffer_count": 0,
+        "fp32_param_mb": 4.519920349121094,
+        "fp32_param_plus_buffer_mb": 4.519920349121094,
+        "checkpoint_path": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/CompletionFormer/ref_model_hw/model_00059.pt",
+        "checkpoint_file_mb": 4.543242454528809
+      },
+      "host_cpu_breakdown": {
+        "threads": 4,
+        "repeat": 3,
+        "operator_top": [
+          {
+            "name": "aten::mkldnn_convolution",
+            "self_cpu_ms": 20.23956100000001,
+            "total_cpu_ms": 20.311723333333344,
+            "calls": 23
+          },
+          {
+            "name": "aten::upsample_bilinear2d",
+            "self_cpu_ms": 2.081787333333337,
+            "total_cpu_ms": 2.512527999999996,
+            "calls": 5
+          },
+          {
+            "name": "aten::cat",
+            "self_cpu_ms": 1.9988876666666322,
+            "total_cpu_ms": 2.2436253333333096,
+            "calls": 75
+          },
+          {
+            "name": "aten::add",
+            "self_cpu_ms": 1.2940213333333233,
+            "total_cpu_ms": 1.4798489999999946,
+            "calls": 332
+          },
+          {
+            "name": "aten::grid_sampler_2d",
+            "self_cpu_ms": 1.1576246666666654,
+            "total_cpu_ms": 1.183583666666663,
+            "calls": 62
+          },
+          {
+            "name": "aten::mul",
+            "self_cpu_ms": 0.663559000000086,
+            "total_cpu_ms": 0.8143126666667061,
+            "calls": 249
+          },
+          {
+            "name": "aten::sub",
+            "self_cpu_ms": 0.6201143333331687,
+            "total_cpu_ms": 0.9215763333332604,
+            "calls": 249
+          },
+          {
+            "name": "aten::copy_",
+            "self_cpu_ms": 0.544293333333355,
+            "total_cpu_ms": 0.544293333333355,
+            "calls": 645
+          }
+        ],
+        "module_top": [
+          {
+            "name": "backbone.dec2",
+            "mean_ms": 7.507023401558399,
+            "total_ms": 22.521070204675198
+          },
+          {
+            "name": "prop_layer",
+            "mean_ms": 7.227892987430096,
+            "total_ms": 21.683678962290287
+          },
+          {
+            "name": "backbone.former",
+            "mean_ms": 3.6889867236216864,
+            "total_ms": 11.066960170865059
+          },
+          {
+            "name": "backbone.conv1",
+            "mean_ms": 2.3374298277000585,
+            "total_ms": 7.012289483100176
+          },
+          {
+            "name": "backbone.dep_dec1",
+            "mean_ms": 2.076969016343355,
+            "total_ms": 6.2309070490300655
+          },
+          {
+            "name": "backbone.gd_dec1",
+            "mean_ms": 1.6752413163582485,
+            "total_ms": 5.025723949074745
+          },
+          {
+            "name": "backbone.dep_dec0",
+            "mean_ms": 1.2432152094940345,
+            "total_ms": 3.7296456284821033
+          },
+          {
+            "name": "backbone.cf_dec1",
+            "mean_ms": 1.217779703438282,
+            "total_ms": 3.653339110314846
+          }
+        ],
+        "source": "/root/demo/artifacts/rhb_auto_config_framework/work/host_cpu_benchmarks/model_size_cpu_breakdown/host_cpu_model_size_breakdown.json"
+      }
     },
     {
       "id": "cspn",
       "name": "CSPN ResNetTiny HW128",
       "stable_latency_ms": 2121.742,
       "latency_label": "median of accepted 2-load exact runs",
-      "cpu_mean_ms": 15.102
+      "cpu_mean_ms": 15.102,
+      "cpu_latency_label": "Host CPU PyTorch end-to-end baseline, 5 samples, 4 threads",
+      "cpu_benchmark": {
+        "device": "local_host_cpu",
+        "framework": "PyTorch compiler-aligned model",
+        "input": "NYU val 128x128, batch=1",
+        "samples": 5,
+        "threads": 4,
+        "mean_ms": 15.102214,
+        "median_ms": 15.061274,
+        "p95_ms": 15.267376,
+        "source": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/reports/cpu_vs_rhb_latency_20260714.json"
+      },
+      "model_size": {
+        "param_count": 1088865,
+        "trainable_param_count": 1088865,
+        "buffer_count": 3775,
+        "fp32_param_mb": 4.153690338134766,
+        "fp32_param_plus_buffer_mb": 4.1680908203125,
+        "checkpoint_path": "/root/demo/artifacts/cspn_aligned_hw_ckpts/nyu_cspn_resnettiny_hw128_w24_step8_20260708_064340/best_model.pt",
+        "checkpoint_file_mb": 12.62120246887207
+      },
+      "host_cpu_breakdown": {
+        "threads": 4,
+        "repeat": 3,
+        "operator_top": [
+          {
+            "name": "aten::mkldnn_convolution",
+            "self_cpu_ms": 11.449276666666647,
+            "total_cpu_ms": 11.526183999999992,
+            "calls": 33
+          },
+          {
+            "name": "aten::upsample_bilinear2d",
+            "self_cpu_ms": 0.5352439999999964,
+            "total_cpu_ms": 0.7629856666666653,
+            "calls": 3
+          },
+          {
+            "name": "aten::copy_",
+            "self_cpu_ms": 0.5239583333333449,
+            "total_cpu_ms": 0.5239583333333449,
+            "calls": 100
+          },
+          {
+            "name": "aten::native_batch_norm",
+            "self_cpu_ms": 0.4257886666666659,
+            "total_cpu_ms": 0.49167899999999976,
+            "calls": 31
+          },
+          {
+            "name": "aten::cat",
+            "self_cpu_ms": 0.38946466666666946,
+            "total_cpu_ms": 0.40538200000000324,
+            "calls": 12
+          },
+          {
+            "name": "aten::clamp_min_",
+            "self_cpu_ms": 0.22214666666667224,
+            "total_cpu_ms": 0.22214666666667224,
+            "calls": 28
+          },
+          {
+            "name": "aten::mul",
+            "self_cpu_ms": 0.2000540000000043,
+            "total_cpu_ms": 0.2000540000000043,
+            "calls": 32
+          },
+          {
+            "name": "aten::add",
+            "self_cpu_ms": 0.17475933333332494,
+            "total_cpu_ms": 0.17475933333332494,
+            "calls": 27
+          }
+        ],
+        "module_top": [
+          {
+            "name": "backbone.dec1",
+            "mean_ms": 2.6716144445041814,
+            "total_ms": 8.014843333512545
+          },
+          {
+            "name": "backbone.dec2",
+            "mean_ms": 2.4762173804144063,
+            "total_ms": 7.428652141243219
+          },
+          {
+            "name": "backbone.stage2",
+            "mean_ms": 1.7447651674350102,
+            "total_ms": 5.234295502305031
+          },
+          {
+            "name": "backbone.dec3",
+            "mean_ms": 1.5812378066281478,
+            "total_ms": 4.743713419884443
+          },
+          {
+            "name": "backbone.stage3",
+            "mean_ms": 1.4848685823380947,
+            "total_ms": 4.454605747014284
+          },
+          {
+            "name": "cspn",
+            "mean_ms": 1.39979583521684,
+            "total_ms": 4.19938750565052
+          },
+          {
+            "name": "backbone.stem",
+            "mean_ms": 1.0873164671162765,
+            "total_ms": 3.2619494013488293
+          },
+          {
+            "name": "backbone.refine",
+            "mean_ms": 0.8784602396190166,
+            "total_ms": 2.63538071885705
+          }
+        ],
+        "source": "/root/demo/artifacts/rhb_auto_config_framework/work/host_cpu_benchmarks/model_size_cpu_breakdown/host_cpu_model_size_breakdown.json"
+      }
     },
     {
       "id": "nlspn",
       "name": "NLSPN HW128",
       "stable_latency_ms": 4282.089,
       "latency_label": "median of accepted 2-pack exact runs",
-      "cpu_mean_ms": 75.116
+      "cpu_mean_ms": 75.116,
+      "cpu_latency_label": "Host CPU PyTorch end-to-end baseline, 5 samples, 4 threads",
+      "cpu_benchmark": {
+        "device": "local_host_cpu",
+        "framework": "PyTorch compiler-aligned model",
+        "input": "NYU val 128x128, batch=1",
+        "samples": 5,
+        "threads": 4,
+        "mean_ms": 75.116092,
+        "median_ms": 75.019937,
+        "p95_ms": 76.783454,
+        "source": "/root/demo/artifacts/successful_pipelines/completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime/reports/cpu_vs_rhb_latency_20260714.json"
+      },
+      "model_size": {
+        "param_count": 16121866,
+        "trainable_param_count": 16121866,
+        "buffer_count": 11867,
+        "fp32_param_mb": 61.500038146972656,
+        "fp32_param_plus_buffer_mb": 61.54530715942383,
+        "checkpoint_path": "/root/demo/artifacts/nlspn_hw_aligned_ckpts/nyu_nlspn_hw_aligned_128_20260713/model_best_infer_state.pt",
+        "checkpoint_file_mb": 61.601399421691895
+      },
+      "host_cpu_breakdown": {
+        "threads": 4,
+        "repeat": 3,
+        "operator_top": [
+          {
+            "name": "aten::mkldnn_convolution",
+            "self_cpu_ms": 63.604065333333295,
+            "total_cpu_ms": 63.71596366666669,
+            "calls": 31
+          },
+          {
+            "name": "aten::copy_",
+            "self_cpu_ms": 2.868132333333332,
+            "total_cpu_ms": 2.868132333333332,
+            "calls": 11
+          },
+          {
+            "name": "aten::cat",
+            "self_cpu_ms": 2.37087333333334,
+            "total_cpu_ms": 2.4171233333333335,
+            "calls": 10
+          },
+          {
+            "name": "aten::upsample_nearest2d",
+            "self_cpu_ms": 0.842466333333381,
+            "total_cpu_ms": 3.7037160000000173,
+            "calls": 4
+          },
+          {
+            "name": "aten::native_batch_norm",
+            "self_cpu_ms": 0.7334076666666687,
+            "total_cpu_ms": 0.8029513333333327,
+            "calls": 27
+          },
+          {
+            "name": "aten::clamp_min_",
+            "self_cpu_ms": 0.40528733333331174,
+            "total_cpu_ms": 0.40528733333331174,
+            "calls": 27
+          },
+          {
+            "name": "aten::replication_pad2d",
+            "self_cpu_ms": 0.3137560000000958,
+            "total_cpu_ms": 0.3174433333333679,
+            "calls": 48
+          },
+          {
+            "name": "aten::add_",
+            "self_cpu_ms": 0.2571300000000028,
+            "total_cpu_ms": 0.2571300000000028,
+            "calls": 8
+          }
+        ],
+        "module_top": [
+          {
+            "name": "conv5",
+            "mean_ms": 9.398203964034716,
+            "total_ms": 28.19461189210415
+          },
+          {
+            "name": "conv2",
+            "mean_ms": 9.39471988628308,
+            "total_ms": 28.18415965884924
+          },
+          {
+            "name": "conv4",
+            "mean_ms": 9.30267091219624,
+            "total_ms": 27.908012736588717
+          },
+          {
+            "name": "conv3",
+            "mean_ms": 8.405504282563925,
+            "total_ms": 25.216512847691774
+          },
+          {
+            "name": "dec2",
+            "mean_ms": 7.479927036911249,
+            "total_ms": 22.439781110733747
+          },
+          {
+            "name": "dec3",
+            "mean_ms": 4.648014592627685,
+            "total_ms": 13.944043777883053
+          },
+          {
+            "name": "id_dec1",
+            "mean_ms": 4.406191563854615,
+            "total_ms": 13.218574691563845
+          },
+          {
+            "name": "dec4",
+            "mean_ms": 4.228796344250441,
+            "total_ms": 12.686389032751322
+          }
+        ],
+        "source": "/root/demo/artifacts/rhb_auto_config_framework/work/host_cpu_benchmarks/model_size_cpu_breakdown/host_cpu_model_size_breakdown.json"
+      }
     },
     {
       "id": "dyspn",
       "name": "DySPN HW128",
       "stable_latency_ms": 4145.173,
-      "latency_label": "val32 mean, tailmerge7 packer, RGB [0,1] contract"
+      "latency_label": "val32 mean, tailmerge7 packer, RGB [0,1] contract",
+      "cpu_mean_ms": 42.341,
+      "cpu_latency_label": "Host CPU PyTorch end-to-end baseline, 5 samples, 4 threads",
+      "cpu_benchmark": {
+        "device": "local_host_cpu",
+        "framework": "PyTorch compiler-aligned model",
+        "input": "NYU val 128x128, batch=1",
+        "samples": 5,
+        "threads": 4,
+        "mean_ms": 42.340722,
+        "median_ms": 42.344248,
+        "p95_ms": 43.388275,
+        "source": "/root/demo/artifacts/rhb_auto_config_framework/work/host_cpu_benchmarks/dyspn_hw128_epoch78_5sample_4threads/dyspn_host_cpu_summary.json"
+      },
+      "model_size": {
+        "param_count": 13406214,
+        "trainable_param_count": 13406214,
+        "buffer_count": 11045,
+        "fp32_param_mb": 51.140647888183594,
+        "fp32_param_plus_buffer_mb": 51.18278121948242,
+        "checkpoint_path": "/root/demo/artifacts/rhb_auto_config_framework/remote_ckpts/dyspn_hw128_resnet18_frontend_rhbq_latest/model_best_slim_epoch78.pt",
+        "checkpoint_file_mb": 51.237671852111816
+      },
+      "host_cpu_breakdown": {
+        "threads": 4,
+        "repeat": 3,
+        "operator_top": [
+          {
+            "name": "aten::mkldnn_convolution",
+            "self_cpu_ms": 35.53743066666671,
+            "total_cpu_ms": 35.63244966666667,
+            "calls": 28
+          },
+          {
+            "name": "aten::copy_",
+            "self_cpu_ms": 1.4853173333333751,
+            "total_cpu_ms": 1.4853173333333751,
+            "calls": 32
+          },
+          {
+            "name": "aten::cat",
+            "self_cpu_ms": 0.873178333333323,
+            "total_cpu_ms": 0.8994043333333209,
+            "calls": 6
+          },
+          {
+            "name": "aten::add",
+            "self_cpu_ms": 0.7027613333333824,
+            "total_cpu_ms": 0.7119876666667145,
+            "calls": 47
+          },
+          {
+            "name": "aten::native_batch_norm",
+            "self_cpu_ms": 0.6446779999999943,
+            "total_cpu_ms": 0.7128283333333396,
+            "calls": 27
+          },
+          {
+            "name": "aten::grid_sampler_2d",
+            "self_cpu_ms": 0.5588246666666916,
+            "total_cpu_ms": 0.5704936666666811,
+            "calls": 30
+          },
+          {
+            "name": "aten::mul",
+            "self_cpu_ms": 0.479259333333291,
+            "total_cpu_ms": 0.5196586666666264,
+            "calls": 52
+          },
+          {
+            "name": "aten::upsample_nearest2d",
+            "self_cpu_ms": 0.34319566666666773,
+            "total_cpu_ms": 1.8315453333333371,
+            "calls": 4
+          }
+        ],
+        "module_top": [
+          {
+            "name": "gd_dec1",
+            "mean_ms": 9.380511784305176,
+            "total_ms": 28.141535352915525
+          },
+          {
+            "name": "dec2",
+            "mean_ms": 5.046251385162274,
+            "total_ms": 15.138754155486822
+          },
+          {
+            "name": "conv5",
+            "mean_ms": 4.37600165605545,
+            "total_ms": 13.128004968166351
+          },
+          {
+            "name": "propagation",
+            "mean_ms": 3.9892690256237984,
+            "total_ms": 11.967807076871395
+          },
+          {
+            "name": "dec3",
+            "mean_ms": 3.2070198406775794,
+            "total_ms": 9.621059522032738
+          },
+          {
+            "name": "dec4",
+            "mean_ms": 2.761769418915113,
+            "total_ms": 8.285308256745338
+          },
+          {
+            "name": "conv4",
+            "mean_ms": 2.6727495715022087,
+            "total_ms": 8.018248714506626
+          },
+          {
+            "name": "conv2",
+            "mean_ms": 2.476905006915331,
+            "total_ms": 7.430715020745993
+          }
+        ],
+        "source": "/root/demo/artifacts/rhb_auto_config_framework/work/host_cpu_benchmarks/model_size_cpu_breakdown/host_cpu_model_size_breakdown.json"
+      }
     }
   ],
   "samples": [

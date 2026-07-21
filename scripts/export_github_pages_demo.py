@@ -32,7 +32,15 @@ NLSPN_LOG = Path(
     "/root/demo/artifacts/rhb_auto_config_framework/reports/"
     "nlspn_final_board_pipeline_sample0_dec54bundle_revalidate_20260714.log"
 )
-MODEL_LATENCY_SUMMARY = {
+MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+MODEL_NAMES = {
+    "completionformer": "CompletionFormer HW128",
+    "cspn": "CSPN ResNetTiny HW128",
+    "nlspn": "NLSPN HW128",
+    "dyspn": "DySPN HW128",
+}
+FALLBACK_MODEL_LATENCY_SUMMARY = {
     "completionformer": {
         "stable_latency_ms": 1492.224,
         "latency_label": "sample0 rerun with max CPU freq, mlockall, input pretouch, and GC disabled",
@@ -51,10 +59,27 @@ MODEL_LATENCY_SUMMARY = {
     "dyspn": {
         "stable_latency_ms": 4145.173,
         "latency_label": "val32 mean, tailmerge7 packer, RGB [0,1] contract",
+        "cpu_mean_ms": 137.503,
     },
 }
-MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def load_model_latency_summary() -> dict:
+    manifest_path = OUT_ROOT / "manifest.json"
+    if not manifest_path.exists():
+        return FALLBACK_MODEL_LATENCY_SUMMARY
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    summary = {}
+    for model in manifest.get("models", []):
+        model_id = model.get("id")
+        if not model_id:
+            continue
+        summary[model_id] = {k: v for k, v in model.items() if k not in {"id", "name"}}
+    for model_id, fallback in FALLBACK_MODEL_LATENCY_SUMMARY.items():
+        summary.setdefault(model_id, fallback)
+        for key, value in fallback.items():
+            summary[model_id].setdefault(key, value)
+    return summary
 
 
 def sample_index(path: Path) -> int:
@@ -438,6 +463,7 @@ def export_dyspn_sample(npz_path: Path) -> dict:
 
 
 def main() -> None:
+    model_latency_summary = load_model_latency_summary()
     if OUT_ROOT.exists():
         shutil.rmtree(OUT_ROOT)
     OUT_ROOT.mkdir(parents=True)
@@ -461,10 +487,8 @@ def main() -> None:
         "generated_from": "CompletionFormer, CSPN, NLSPN, and DySPN val32 board outputs",
         "point_cloud_sampling": "stride=1 full 128x128 board_pred points",
         "models": [
-            {"id": "completionformer", "name": "CompletionFormer HW128", **MODEL_LATENCY_SUMMARY["completionformer"]},
-            {"id": "cspn", "name": "CSPN ResNetTiny HW128", **MODEL_LATENCY_SUMMARY["cspn"]},
-            {"id": "nlspn", "name": "NLSPN HW128", **MODEL_LATENCY_SUMMARY["nlspn"]},
-            {"id": "dyspn", "name": "DySPN HW128", **MODEL_LATENCY_SUMMARY["dyspn"]},
+            {"id": model_id, "name": MODEL_NAMES[model_id], **model_latency_summary[model_id]}
+            for model_id in ["completionformer", "cspn", "nlspn", "dyspn"]
         ],
         "samples": [
             {

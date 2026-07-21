@@ -84,6 +84,31 @@ function fmtMs(value) {
   return `${value.toFixed(1)} ms`;
 }
 
+function fmtCount(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+function fmtModelSize(size) {
+  if (!size || typeof size.param_count !== "number") return "model size n/a";
+  const paramMb = fmt(size.fp32_param_mb, 1);
+  const ckptMb = fmt(size.checkpoint_file_mb, 1);
+  return `${fmtCount(size.param_count)} params · ${paramMb} MB fp32 · ${ckptMb} MB ckpt`;
+}
+
+function cpuBreakdownText(model) {
+  const breakdown = model.host_cpu_breakdown || {};
+  const op = (breakdown.operator_top || [])[0];
+  const mod = (breakdown.module_top || [])[0];
+  if (!op && !mod) return "CPU breakdown n/a";
+  const parts = [];
+  if (op) parts.push(`op ${shortOpName(op.name)} ${fmtMs(op.self_cpu_ms)}`);
+  if (mod) parts.push(`module ${shortOpName(mod.name)} ${fmtMs(mod.mean_ms)}`);
+  return `CPU top ${parts.join(" · ")}`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -289,6 +314,8 @@ function renderModelSummary() {
       <span>${samples.length} board samples</span>
       <span>board-ref L1 ${fmt(avgAbs, 4)} / RMSE ${fmt(avgRmse, 4)}</span>
       <span>stable lat ${stableLatency === undefined ? "n/a" : fmtMs(stableLatency)} · ${speed}</span>
+      <span>${escapeHtml(fmtModelSize(model.model_size))}</span>
+      <span>${escapeHtml(cpuBreakdownText(model))}</span>
       <span>${escapeHtml(model.latency_label || "sample trace mean")} </span>
       <span>${aggregateBottleneck(samples)}</span>
     `;

@@ -30,6 +30,7 @@ DEFAULT_PORTABLE_DIR = Path(
     "completionformer_hw128_ckpt00059_rhb_convonlycf_20260702/portable_runtime"
 )
 PORTABLE_DIR = Path(os.environ.get("CF_PORTABLE_DIR", DEFAULT_PORTABLE_DIR)).resolve()
+DEMO_MANIFEST = PORTABLE_DIR / "docs" / "data" / "manifest.json"
 NLSPN_WORK_DIR = Path(
     "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713"
 )
@@ -105,6 +106,19 @@ def model_config(model_key) -> dict:
     if key not in MODELS:
         raise KeyError(f"Unknown model: {key}")
     return MODELS[key]
+
+
+def manifest_model_info(model_key: str) -> dict:
+    if not DEMO_MANIFEST.exists():
+        return {}
+    try:
+        manifest = json.loads(DEMO_MANIFEST.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    for model in manifest.get("models", []):
+        if model.get("id") == model_key:
+            return {k: v for k, v in model.items() if k not in {"id", "name"}}
+    return {}
 
 
 def completionformer_sample_paths(cfg: dict, index: int) -> dict[str, Path]:
@@ -480,6 +494,7 @@ def model_public_info(cfg: dict) -> dict:
         "description": cfg["description"],
         "portable_dir": str(cfg["portable_dir"]),
         "can_run_board": cfg.get("run_script") is not None and cfg["run_script"].exists(),
+        **manifest_model_info(cfg["key"]),
     }
 
 
