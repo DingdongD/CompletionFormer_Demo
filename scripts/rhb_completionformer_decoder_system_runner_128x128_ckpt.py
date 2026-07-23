@@ -1,5 +1,7 @@
 import argparse
 import csv
+import ctypes
+import gc
 import mmap
 import os
 import os.path as osp
@@ -74,6 +76,59 @@ OUTPUT_SCALES = {
     CF_DEC0: 128.0,
     CF_DEC0_CONV_ONLY: 8.0,
 }
+
+
+def try_mlockall():
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        MCL_CURRENT = 1
+        MCL_FUTURE = 2
+        ret = libc.mlockall(MCL_CURRENT | MCL_FUTURE)
+        if ret != 0:
+            err = ctypes.get_errno()
+            print(f"WARNING: mlockall failed errno={err}")
+        else:
+            print("RUNTIME_MLOCKALL: enabled")
+    except Exception as exc:
+        print(f"WARNING: mlockall unavailable: {exc}")
+
+
+def try_lock_cpu_max_freq():
+    base = "/sys/devices/system/cpu"
+    changed = 0
+    for name in sorted(os.listdir(base)) if osp.isdir(base) else []:
+        if not name.startswith("cpu") or not name[3:].isdigit():
+            continue
+        cpufreq = osp.join(base, name, "cpufreq")
+        if not osp.isdir(cpufreq):
+            continue
+        gov = osp.join(cpufreq, "scaling_governor")
+        max_freq = osp.join(cpufreq, "scaling_max_freq")
+        set_freq = osp.join(cpufreq, "scaling_setspeed")
+        try:
+            if osp.exists(gov):
+                with open(gov, "w") as f:
+                    f.write("performance\n")
+                changed += 1
+            if osp.exists(max_freq) and osp.exists(set_freq):
+                with open(max_freq) as f:
+                    freq = f.read().strip()
+                with open(set_freq, "w") as f:
+                    f.write(freq + "\n")
+        except Exception as exc:
+            print(f"WARNING: cpu freq lock skipped for {name}: {exc}")
+    print(f"RUNTIME_CPU_MAX_FREQ: touched_cpus={changed}")
+
+
+def pretouch_arrays(*arrays):
+    total = 0.0
+    for arr in arrays:
+        if arr is None:
+            continue
+        view = np.asarray(arr)
+        if view.size:
+            total += float(view.reshape(-1)[::4096].sum(dtype=np.float64))
+    print(f"RUNTIME_PRETOUCH_INPUTS: checksum={total:.6f}")
 
 
 def load_activation_scales(model_path):
@@ -325,7 +380,20 @@ def main():
     parser.add_argument("--second-run-mode", choices=["none", "from-dec4"], default="none")
     parser.add_argument("--clear-wr-done-before-run", action="store_true", help="Clear stale PL wr_done with PL[0x00]=0x100 before every run_inference.")
     parser.add_argument("--cf-dec0-host-sigmoid", action="store_true", help="Run cf_dec0 Conv on RHB and apply sigmoid on Host.")
+    parser.add_argument("--lock-cpu-max-freq", action="store_true", help="Best-effort set CPU governor/frequency to max before the run.")
+    parser.add_argument("--mlockall", action="store_true", help="Best-effort mlockall(MCL_CURRENT|MCL_FUTURE) before the run.")
+    parser.add_argument("--pretouch-inputs", action="store_true", help="Touch feature arrays before the first RHB call to reduce first-access jitter.")
+    parser.add_argument("--disable-gc", action="store_true", help="Disable Python GC during the board run.")
     args = parser.parse_args()
+
+    gc_was_enabled = gc.isenabled()
+    if args.lock_cpu_max_freq:
+        try_lock_cpu_max_freq()
+    if args.mlockall:
+        try_mlockall()
+    if args.disable_gc:
+        gc.disable()
+        print("RUNTIME_DISABLE_GC: True")
 
     ac_driver.set_log_level("info")
     ac_driver.init_accelerator()
@@ -363,6 +431,8 @@ def main():
         fe2 = make_feature((1, 64, 128, 128), 2).astype(np.float32)
         fe1 = make_feature((1, 64, 128, 128), 1).astype(np.float32)
         print("FEATURE_SOURCE: synthetic")
+    if args.pretouch_inputs:
+        pretouch_arrays(fe7, fe6, fe5, fe4, fe3, fe2, fe1)
 
     global ENABLE_DEC6_BARRIER, BARRIER_DEC6_FLOAT, USE_SECOND_RUN, SECOND_RUN_MODE
     ENABLE_DEC6_BARRIER = bool(args.dec6_barrier_before_each)
@@ -444,6 +514,8 @@ def main():
             confidence_f = confidence_logits_f
     finally:
         close_pl_mmap()
+        if args.disable_gc and gc_was_enabled:
+            gc.enable()
 
     fd6 = quant_input(fd6_f, OUTPUT_SCALES[DEC6])
     fd5 = quant_input(fd5_f, OUTPUT_SCALES[DEC5])
