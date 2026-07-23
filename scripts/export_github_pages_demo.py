@@ -16,10 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = ROOT / "docs" / "data"
 CSPN_VIS_ROOT = ROOT / "outputs"
 NLSPN_WORK_ROOT = Path(
-    "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_rebuild_current_20260713"
+    "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_strict_ref_20260723"
 )
-NLSPN_FEATURE_ROOT = NLSPN_WORK_ROOT / "val32_features"
-NLSPN_BOARD_ROOT = NLSPN_WORK_ROOT / "val32_fix_predinit_guidance_outfit_outputs"
+NLSPN_FEATURE_ROOT = NLSPN_WORK_ROOT / "features"
+NLSPN_BOARD_ROOT = NLSPN_WORK_ROOT / "val32_board_corrected"
+NLSPN_SUMMARY_JSON = NLSPN_BOARD_ROOT / "summary_aggregate.json"
 DYSPN_VIS_ROOT = Path(
     "/root/demo/artifacts/visualizations/dyspn_hw128_epoch78_tailmerge7_rgbfix"
 )
@@ -29,8 +30,8 @@ CSPN_LOG = Path(
     "board_sample0_2load_revalidate_20260714.log"
 )
 NLSPN_LOG = Path(
-    "/root/demo/artifacts/rhb_auto_config_framework/reports/"
-    "nlspn_final_board_pipeline_sample0_dec54bundle_revalidate_20260714.log"
+    "/root/demo/artifacts/rhb_auto_config_framework/work/nlspn_strict_ref_20260723/"
+    "val32_board_corrected_logs/sample00_strict_ref_board_corrected.log"
 )
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -52,8 +53,8 @@ FALLBACK_MODEL_LATENCY_SUMMARY = {
         "cpu_mean_ms": 15.102,
     },
     "nlspn": {
-        "stable_latency_ms": 4282.089,
-        "latency_label": "median of accepted 2-pack exact runs",
+        "stable_latency_ms": 14202.643,
+        "latency_label": "val32 mean, strict-ref 4-pack with original NLSPN propagation on RHBLite CPU",
         "cpu_mean_ms": 75.116,
     },
     "dyspn": {
@@ -79,6 +80,21 @@ def load_model_latency_summary() -> dict:
         summary.setdefault(model_id, fallback)
         for key, value in fallback.items():
             summary[model_id].setdefault(key, value)
+    if NLSPN_SUMMARY_JSON.exists():
+        nlspn_agg = json.loads(NLSPN_SUMMARY_JSON.read_text(encoding="utf-8"))
+        summary.setdefault("nlspn", {})
+        summary["nlspn"].update(
+            {
+                "stable_latency_ms": round(float(nlspn_agg["e2e_with_load_ms_mean"]), 3),
+                "latency_label": "val32 mean, strict-ref 4-pack with original NLSPN propagation on RHBLite CPU",
+                "rhb_total_no_load_ms": round(float(nlspn_agg["total_ms_mean"]), 3),
+                "packer_load_ms": round(float(nlspn_agg["packer_load_ms_mean"]), 3),
+                "wall_ms": round(float(nlspn_agg["wall_ms_mean"]), 3),
+                "board_ref_l1_mean": round(float(nlspn_agg["pred_l1_mean"]), 6),
+                "board_ref_rmse_mean": round(float(nlspn_agg["pred_rmse_mean"]), 6),
+                "num_val_samples": int(nlspn_agg["num_samples"]),
+            }
+        )
     return summary
 
 
@@ -90,7 +106,7 @@ def sample_index(path: Path) -> int:
 
 
 def nlspn_index(path: Path) -> int:
-    match = re.search(r"sample_(\d+)", str(path))
+    match = re.search(r"sample_?(\d+)", str(path))
     if not match:
         raise ValueError(path)
     return int(match.group(1))
@@ -345,7 +361,8 @@ def export_cspn_sample(npz_path: Path) -> dict:
 
 def export_nlspn_sample(feature_npz: Path) -> dict:
     idx = nlspn_index(feature_npz)
-    board_npz = NLSPN_BOARD_ROOT / f"sample_{idx}_fix_predinit_guidance_outfit.npz"
+    sample = f"sample{idx:02d}"
+    board_npz = NLSPN_BOARD_ROOT / f"{sample}_strict_ref_board_corrected.npz"
     if not board_npz.exists():
         raise FileNotFoundError(board_npz)
     out_dir = OUT_ROOT / f"nlspn_sample{idx}"
@@ -381,9 +398,9 @@ def export_nlspn_sample(feature_npz: Path) -> dict:
     metrics.update({
         "board_init_min": float(np.nanmin(board_pred_init)),
         "board_init_max": float(np.nanmax(board_pred_init)),
-        "runtime_mitigation": "2-pack dec5+dec4/rest Model-Packer partition",
+        "runtime_mitigation": "4-pack strict-ref RHB Conv/head partition + board-effective output-scale correction",
     })
-    metrics.update(parse_latency(NLSPN_LOG))
+    metrics.update(parse_latency(NLSPN_WORK_ROOT / "val32_board_corrected_logs" / f"{sample}_strict_ref_board_corrected.log"))
 
     pc_path = out_dir / "point_cloud.json"
     pc_path.write_text(json.dumps(point_cloud(rgb, board_pred), separators=(",", ":")))
@@ -478,7 +495,7 @@ def main() -> None:
         (OUT_ROOT / f"sample{sample['index']}" / "meta.json").write_text(json.dumps(sample, indent=2))
     cspn_npzs = sorted(CSPN_VIS_ROOT.glob("cspn_sample*/cspn_val*_padded16_board_pred_outputs.npz"), key=sample_index)
     samples.extend(export_cspn_sample(p) for p in cspn_npzs)
-    nlspn_npzs = sorted(NLSPN_FEATURE_ROOT.glob("sample_*.npz"), key=nlspn_index)
+    nlspn_npzs = sorted(NLSPN_FEATURE_ROOT.glob("sample*_features.npz"), key=nlspn_index)
     samples.extend(export_nlspn_sample(p) for p in nlspn_npzs)
     dyspn_npzs = sorted(DYSPN_VIS_ROOT.glob("sample*/dyspn_orchestrated_board_pred_outputs.npz"), key=lambda p: sample_index(p.parent))
     samples.extend(export_dyspn_sample(p) for p in dyspn_npzs)

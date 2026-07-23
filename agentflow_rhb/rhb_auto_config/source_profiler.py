@@ -30,7 +30,7 @@ RISKY_MODULES = {
     "MultiheadAttention": "Split/probe attention; Softmax usually Host",
     "ZeroPad2d": "Host shift/pad glue",
     "Conv3d": "Probe separately; CSPN sum_conv may be Host or exact Conv2d rewrite",
-    "ModulatedDeformConvFunction": "Unsupported custom deformable propagation; keep NLSPN propagation on Host or replace with retrainable fixed-neighbor propagation",
+    "ModulatedDeformConvFunction": "Unsupported custom deformable propagation. For strict ref NLSPN semantics keep it on Host; fixed-neighbor propagation is approximate only and requires a retrained checkpoint.",
     "DeformConvFunction": "Unsupported custom deformable convolution; keep on Host or replace with compiler-aligned Conv/shift-sum approximation",
 }
 

@@ -1,7 +1,5 @@
 import argparse
-import ctypes
 import csv
-import gc
 import mmap
 import os
 import os.path as osp
@@ -19,14 +17,10 @@ BARRIER_DEC6_FLOAT = None
 USE_SECOND_RUN = False
 SECOND_RUN_MODE = "none"
 CLEAR_WR_DONE_BEFORE_RUN = False
-PRETOUCH_INPUTS = False
-RUN_INFERENCE_WARN_MS = 250.0
 PL_MM = None
 PL_FD = None
 PL_BASE = 0x800E0000
 PL_MAP_SIZE = 0x10000
-MCL_CURRENT = 1
-MCL_FUTURE = 2
 
 
 DEC6 = "completionformer_test.decoder_tiny_dec6_resize_conv_basicblock_nocbam_4x4_to_8x8_ckpt"
@@ -106,67 +100,6 @@ def timed(label, fn, stats):
     return out
 
 
-def set_cpu_affinity(spec):
-    if not spec:
-        return
-    cpus = {int(x) for x in spec.split(",") if x.strip()}
-    if not cpus:
-        return
-    try:
-        os.sched_setaffinity(0, cpus)
-        print("RUNTIME_AFFINITY:", sorted(os.sched_getaffinity(0)))
-    except Exception as exc:
-        print("RUNTIME_AFFINITY_FAILED:", repr(exc))
-
-
-def set_realtime_priority(priority):
-    if priority <= 0:
-        return
-    try:
-        os.sched_setscheduler(0, os.SCHED_FIFO, os.sched_param(priority))
-        print("RUNTIME_SCHED_FIFO:", priority)
-    except Exception as exc:
-        print("RUNTIME_SCHED_FIFO_FAILED:", repr(exc))
-
-
-def lock_memory():
-    try:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-        rc = libc.mlockall(MCL_CURRENT | MCL_FUTURE)
-        if rc == 0:
-            print("RUNTIME_MLOCKALL: True")
-        else:
-            err = ctypes.get_errno()
-            print("RUNTIME_MLOCKALL_FAILED:", err, os.strerror(err))
-    except Exception as exc:
-        print("RUNTIME_MLOCKALL_FAILED:", repr(exc))
-
-
-def set_cpu_max_freq():
-    base = "/sys/devices/system/cpu/cpu0/cpufreq"
-    max_path = osp.join(base, "cpuinfo_max_freq")
-    set_path = osp.join(base, "scaling_setspeed")
-    try:
-        with open(max_path) as f:
-            max_freq = f.read().strip()
-        with open(set_path, "w") as f:
-            f.write(max_freq)
-        with open(osp.join(base, "scaling_cur_freq")) as f:
-            cur_freq = f.read().strip()
-        print("RUNTIME_CPU_FREQ:", cur_freq)
-    except Exception as exc:
-        print("RUNTIME_CPU_FREQ_FAILED:", repr(exc))
-
-
-def stabilize_runtime(args):
-    if args.lock_cpu_max_freq:
-        set_cpu_max_freq()
-    set_cpu_affinity(args.cpu_affinity)
-    set_realtime_priority(args.realtime_priority)
-    if args.mlockall:
-        lock_memory()
-
-
 def saturate_int8(x):
     return np.clip(x, -128, 127).astype(np.int8)
 
@@ -179,20 +112,6 @@ def quant_input(x_float, input_scale):
     return saturate_int8(np.rint(x_float.astype(np.float32) * np.float32(input_scale)))
 
 
-def pretouch_array(x):
-    arr = np.ascontiguousarray(x)
-    if not PRETOUCH_INPUTS:
-        return arr
-    flat = arr.reshape(-1)
-    if flat.size:
-        # Touch one byte per 4 KiB page plus the last byte so Linux has faulted
-        # and pinned the pages before ac_driver enters its DMA send path.
-        step = 4096
-        _ = int(np.asarray(flat[::step], dtype=np.int8).sum())
-        _ = int(flat[-1])
-    return arr
-
-
 def sigmoid_float(x):
     x = np.clip(x.astype(np.float32), -80.0, 80.0)
     return (1.0 / (1.0 + np.exp(-x))).astype(np.float32)
@@ -202,7 +121,7 @@ def run_scaled(sub_model_name, input_float):
     if ENABLE_DEC6_BARRIER and sub_model_name != DEC6 and BARRIER_DEC6_FLOAT is not None:
         barrier_feed = quant_input(BARRIER_DEC6_FLOAT, INPUT_SCALES[DEC6])
         ac_driver.run_inference([barrier_feed], sub_model_name=DEC6)
-    feed = pretouch_array(quant_input(input_float, INPUT_SCALES[sub_model_name]))
+    feed = quant_input(input_float, INPUT_SCALES[sub_model_name])
     second_models = {
         DEC4,
         DEC3,
@@ -225,12 +144,41 @@ def run_scaled(sub_model_name, input_float):
         ac_driver.run_inference([feed], sub_model_name=sub_model_name)
         if CLEAR_WR_DONE_BEFORE_RUN:
             clear_wr_done()
-    run_start = time.perf_counter()
     raw = ac_driver.run_inference([feed], sub_model_name=sub_model_name).astype(np.int8)
-    run_elapsed = (time.perf_counter() - run_start) * 1000.0
-    if run_elapsed > RUN_INFERENCE_WARN_MS:
-        print(f"RUNTIME_RUN_INFERENCE_SLOW {sub_model_name} {run_elapsed:.3f} ms")
     y_float = dequant_output(raw, OUTPUT_SCALES[sub_model_name])
+    return raw, y_float
+
+
+def run_scaled_profiled(label, sub_model_name, input_float, stats):
+    feed = timed(f"quant::{label}", lambda: quant_input(input_float, INPUT_SCALES[sub_model_name]), stats)
+    second_models = {
+        DEC4,
+        DEC3,
+        DEC2_RSZ_UP0,
+        DEC2_RSZ_UP1,
+        DEC2_EXACT_B0,
+        DEC2_EXACT_B1,
+        DEP_DEC1_FULL,
+        DEP_DEC0,
+        GD_DEC1_FULL,
+        GD_DEC0,
+        CF_DEC1,
+        CF_DEC0,
+        CF_DEC0_CONV_ONLY,
+    }
+    use_second = USE_SECOND_RUN or (SECOND_RUN_MODE == "from-dec4" and sub_model_name in second_models)
+    if CLEAR_WR_DONE_BEFORE_RUN:
+        clear_wr_done()
+    if use_second:
+        timed(f"rhb_warmdiscard::{label}", lambda: ac_driver.run_inference([feed], sub_model_name=sub_model_name), stats)
+        if CLEAR_WR_DONE_BEFORE_RUN:
+            clear_wr_done()
+    raw = timed(
+        f"rhb::{label}",
+        lambda: ac_driver.run_inference([feed], sub_model_name=sub_model_name).astype(np.int8),
+        stats,
+    )
+    y_float = timed(f"dequant::{label}", lambda: dequant_output(raw, OUTPUT_SCALES[sub_model_name]), stats)
     return raw, y_float
 
 
@@ -298,36 +246,36 @@ def concat_like(fd, fe):
 
 
 def dec2_resize_upconv_split(fd3, fe3, stats, trace=None, warmup_up0=False, warmup_all=False, dec2_mode="normal"):
-    x64 = np.concatenate([fd3, fe3], axis=1).astype(np.float32)
+    x64 = timed("host::dec2_concat_fd3_fe3", lambda: np.concatenate([fd3, fe3], axis=1).astype(np.float32), stats)
 
     def run_upconv():
         if dec2_mode in ("dummy-y1", "dummy-y1-warm-y1"):
-            warm_raw, warm_f = run_scaled(DEC2_RSZ_UP1, x64[:, 80:160])
+            warm_raw, warm_f = run_scaled_profiled("dec2_up1_warm_dummy", DEC2_RSZ_UP1, x64[:, 80:160], stats)
             if trace is not None:
                 trace["dec2_dummy_y1_raw"] = warm_raw
                 trace["dec2_dummy_y1_f"] = warm_f
         if warmup_up0 or warmup_all:
-            warm_raw, warm_f = run_scaled(DEC2_RSZ_UP0, x64[:, :80])
+            warm_raw, warm_f = run_scaled_profiled("dec2_up0_warm", DEC2_RSZ_UP0, x64[:, :80], stats)
             if trace is not None:
                 trace["dec2_warmup_y0_raw"] = warm_raw
                 trace["dec2_warmup_y0_f"] = warm_f
         if dec2_mode == "reverse":
-            y1_raw, y1_f = run_scaled(DEC2_RSZ_UP1, x64[:, 80:160])
-            y0_raw, y0_f = run_scaled(DEC2_RSZ_UP0, x64[:, :80])
+            y1_raw, y1_f = run_scaled_profiled("dec2_up1", DEC2_RSZ_UP1, x64[:, 80:160], stats)
+            y0_raw, y0_f = run_scaled_profiled("dec2_up0", DEC2_RSZ_UP0, x64[:, :80], stats)
         else:
-            y0_raw, y0_f = run_scaled(DEC2_RSZ_UP0, x64[:, :80])
+            y0_raw, y0_f = run_scaled_profiled("dec2_up0", DEC2_RSZ_UP0, x64[:, :80], stats)
             if warmup_all or dec2_mode == "dummy-y1-warm-y1":
-                warm_raw, warm_f = run_scaled(DEC2_RSZ_UP1, x64[:, 80:160])
+                warm_raw, warm_f = run_scaled_profiled("dec2_up1_warm", DEC2_RSZ_UP1, x64[:, 80:160], stats)
                 if trace is not None:
                     trace["dec2_warmup_y1_raw"] = warm_raw
                     trace["dec2_warmup_y1_f"] = warm_f
-            y1_raw, y1_f = run_scaled(DEC2_RSZ_UP1, x64[:, 80:160])
+            y1_raw, y1_f = run_scaled_profiled("dec2_up1", DEC2_RSZ_UP1, x64[:, 80:160], stats)
         if warmup_all and dec2_mode == "reverse":
-            warm_raw, warm_f = run_scaled(DEC2_RSZ_UP1, x64[:, 80:160])
+            warm_raw, warm_f = run_scaled_profiled("dec2_up1_warm", DEC2_RSZ_UP1, x64[:, 80:160], stats)
             if trace is not None:
                 trace["dec2_warmup_y1_raw"] = warm_raw
                 trace["dec2_warmup_y1_f"] = warm_f
-        up_f = np.maximum(y0_f + y1_f, 0.0).astype(np.float32)
+        up_f = timed("host::dec2_sum_relu", lambda: np.maximum(y0_f + y1_f, 0.0).astype(np.float32), stats)
         if trace is not None:
             trace["dec2_x64"] = x64
             trace["dec2_y0_raw"] = y0_raw
@@ -337,20 +285,20 @@ def dec2_resize_upconv_split(fd3, fe3, stats, trace=None, warmup_up0=False, warm
             trace["dec2_up_f"] = up_f
         return up_f
 
-    up = timed("dec2_resize_upconv_split_sum_host_relu", run_upconv, stats)
+    up = run_upconv()
     if warmup_all:
-        warm_raw, warm_f = run_scaled(DEC2_EXACT_B0, up)
+        warm_raw, warm_f = run_scaled_profiled("dec2_block0_warm", DEC2_EXACT_B0, up, stats)
         if trace is not None:
             trace["dec2_warmup_b0_raw"] = warm_raw
             trace["dec2_warmup_b0_f"] = warm_f
-    b0_raw, b0_f = timed("dec2_exact_block_conv0_rhb", lambda: run_scaled(DEC2_EXACT_B0, up), stats)
+    b0_raw, b0_f = run_scaled_profiled("dec2_block0", DEC2_EXACT_B0, up, stats)
     if warmup_all:
-        warm_raw, warm_f = run_scaled(DEC2_EXACT_B1, b0_f)
+        warm_raw, warm_f = run_scaled_profiled("dec2_block1_warm", DEC2_EXACT_B1, b0_f, stats)
         if trace is not None:
             trace["dec2_warmup_b1_raw"] = warm_raw
             trace["dec2_warmup_b1_f"] = warm_f
-    b1_raw, b1_f = timed("dec2_exact_block_conv1_rhb", lambda: run_scaled(DEC2_EXACT_B1, b0_f), stats)
-    fd2_f = timed("host_dec2_exact_residual_relu", lambda: np.maximum(b1_f + up, 0.0).astype(np.float32), stats)
+    b1_raw, b1_f = run_scaled_profiled("dec2_block1", DEC2_EXACT_B1, b0_f, stats)
+    fd2_f = timed("host::dec2_exact_residual_relu", lambda: np.maximum(b1_f + up, 0.0).astype(np.float32), stats)
     if trace is not None:
         trace["dec2_b0_raw"] = b0_raw
         trace["dec2_b1_raw"] = b1_raw
@@ -377,32 +325,7 @@ def main():
     parser.add_argument("--second-run-mode", choices=["none", "from-dec4"], default="none")
     parser.add_argument("--clear-wr-done-before-run", action="store_true", help="Clear stale PL wr_done with PL[0x00]=0x100 before every run_inference.")
     parser.add_argument("--cf-dec0-host-sigmoid", action="store_true", help="Run cf_dec0 Conv on RHB and apply sigmoid on Host.")
-    parser.add_argument("--stabilize-runtime", action="store_true", help="Enable runtime jitter mitigations: max CPU freq, CPU3 affinity, SCHED_FIFO priority 20, and mlockall.")
-    parser.add_argument("--lock-cpu-max-freq", action="store_true", help="Set cpu0 scaling_setspeed to cpuinfo_max_freq before running.")
-    parser.add_argument("--cpu-affinity", default="", help="Comma-separated CPU list for this runner process, e.g. 3.")
-    parser.add_argument("--realtime-priority", type=int, default=0, help="Set SCHED_FIFO priority for this runner process. Requires root.")
-    parser.add_argument("--mlockall", action="store_true", help="Call mlockall(MCL_CURRENT|MCL_FUTURE) to reduce page-fault jitter.")
-    parser.add_argument("--pretouch-inputs", action="store_true", help="Make input arrays contiguous and touch one byte per page before ac_driver.run_inference.")
-    parser.add_argument("--disable-gc", action="store_true", help="Disable Python GC during the board pipeline.")
-    parser.add_argument("--run-inference-warn-ms", type=float, default=250.0, help="Print RUNTIME_RUN_INFERENCE_SLOW when one ac_driver.run_inference call exceeds this threshold.")
     args = parser.parse_args()
-
-    if args.stabilize_runtime:
-        args.lock_cpu_max_freq = True
-        args.cpu_affinity = args.cpu_affinity or "3"
-        args.realtime_priority = args.realtime_priority or 20
-        args.mlockall = True
-        args.pretouch_inputs = True
-        args.disable_gc = True
-    stabilize_runtime(args)
-    global PRETOUCH_INPUTS, RUN_INFERENCE_WARN_MS
-    PRETOUCH_INPUTS = bool(args.pretouch_inputs)
-    RUN_INFERENCE_WARN_MS = float(args.run_inference_warn_ms)
-    if PRETOUCH_INPUTS:
-        print("RUNTIME_PRETOUCH_INPUTS: True")
-    if args.disable_gc:
-        gc.disable()
-        print("RUNTIME_GC_DISABLED: True")
 
     ac_driver.set_log_level("info")
     ac_driver.init_accelerator()
@@ -459,18 +382,24 @@ def main():
         print("CLEAR_WR_DONE_BEFORE_RUN: True")
 
     try:
-        fd6_raw, fd6_f = timed("dec6_rhb", lambda: run_scaled(DEC6, fe7), stats)
-        fd5_raw, fd5_f = timed("dec5_rhb", lambda: run_scaled(DEC5, concat_like(fd6_f, fe6)), stats)
-        fd4_raw, fd4_f = timed("dec4_rhb", lambda: run_scaled(DEC4, concat_like(fd5_f, fe5)), stats)
-        fd3_raw, fd3_f = timed("dec3_rhb", lambda: run_scaled(DEC3, concat_like(fd4_f, fe4)), stats)
+        fd6_raw, fd6_f = run_scaled_profiled("dec6", DEC6, fe7, stats)
+        fd5_in = timed("host::concat_dec5", lambda: concat_like(fd6_f, fe6), stats)
+        fd5_raw, fd5_f = run_scaled_profiled("dec5", DEC5, fd5_in, stats)
+        fd4_in = timed("host::concat_dec4", lambda: concat_like(fd5_f, fe5), stats)
+        fd4_raw, fd4_f = run_scaled_profiled("dec4", DEC4, fd4_in, stats)
+        fd3_in = timed("host::concat_dec3", lambda: concat_like(fd4_f, fe4), stats)
+        fd3_raw, fd3_f = run_scaled_profiled("dec3", DEC3, fd3_in, stats)
         if args.pre_dec2_dummy == "dec6":
-            _dummy_raw, _dummy_f = timed("pre_dec2_dummy_dec6_rhb", lambda: run_scaled(DEC6, fe7), stats)
+            _dummy_raw, _dummy_f = run_scaled_profiled("pre_dec2_dummy_dec6", DEC6, fe7, stats)
         elif args.pre_dec2_dummy == "dec5":
-            _dummy_raw, _dummy_f = timed("pre_dec2_dummy_dec5_rhb", lambda: run_scaled(DEC5, concat_like(fd6_f, fe6)), stats)
+            dummy_in = timed("host::pre_dec2_dummy_concat_dec5", lambda: concat_like(fd6_f, fe6), stats)
+            _dummy_raw, _dummy_f = run_scaled_profiled("pre_dec2_dummy_dec5", DEC5, dummy_in, stats)
         elif args.pre_dec2_dummy == "dec4":
-            _dummy_raw, _dummy_f = timed("pre_dec2_dummy_dec4_rhb", lambda: run_scaled(DEC4, concat_like(fd5_f, fe5)), stats)
+            dummy_in = timed("host::pre_dec2_dummy_concat_dec4", lambda: concat_like(fd5_f, fe5), stats)
+            _dummy_raw, _dummy_f = run_scaled_profiled("pre_dec2_dummy_dec4", DEC4, dummy_in, stats)
         elif args.pre_dec2_dummy == "dec3":
-            _dummy_raw, _dummy_f = timed("pre_dec2_dummy_dec3_rhb", lambda: run_scaled(DEC3, concat_like(fd4_f, fe4)), stats)
+            dummy_in = timed("host::pre_dec2_dummy_concat_dec3", lambda: concat_like(fd4_f, fe4), stats)
+            _dummy_raw, _dummy_f = run_scaled_profiled("pre_dec2_dummy_dec3", DEC3, dummy_in, stats)
         if args.reset_before_dec2:
             print("RESET_BEFORE_DEC2: True")
             ac_driver.load_model(args.model_path)
@@ -486,31 +415,31 @@ def main():
             args.dec2_mode,
         )
 
-        head_in = concat_like(fd2_f, fe2)
+        head_in = timed("host::concat_head_in", lambda: concat_like(fd2_f, fe2), stats)
         if args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_dep_dec1_full_rhb", lambda: run_scaled(DEP_DEC1_FULL, head_in), stats)
-        dep_fd1_raw, dep_fd1_f = timed("dep_dec1_full_rhb", lambda: run_scaled(DEP_DEC1_FULL, head_in), stats)
-        dep_dec0_in = concat_like(dep_fd1_f, fe1)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_dep_dec1_full", DEP_DEC1_FULL, head_in, stats)
+        dep_fd1_raw, dep_fd1_f = run_scaled_profiled("dep_dec1_full", DEP_DEC1_FULL, head_in, stats)
+        dep_dec0_in = timed("host::concat_dep_dec0", lambda: concat_like(dep_fd1_f, fe1), stats)
         if args.warmup_head_dec0 or args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_dep_dec0_rhb", lambda: run_scaled(DEP_DEC0, dep_dec0_in), stats)
-        init_depth_raw, init_depth_f = timed("dep_dec0_rhb", lambda: run_scaled(DEP_DEC0, dep_dec0_in), stats)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_dep_dec0", DEP_DEC0, dep_dec0_in, stats)
+        init_depth_raw, init_depth_f = run_scaled_profiled("dep_dec0", DEP_DEC0, dep_dec0_in, stats)
         if args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_gd_dec1_full_rhb", lambda: run_scaled(GD_DEC1_FULL, head_in), stats)
-        gd_fd1_raw, gd_fd1_f = timed("gd_dec1_full_rhb", lambda: run_scaled(GD_DEC1_FULL, head_in), stats)
-        gd_dec0_in = concat_like(gd_fd1_f, fe1)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_gd_dec1_full", GD_DEC1_FULL, head_in, stats)
+        gd_fd1_raw, gd_fd1_f = run_scaled_profiled("gd_dec1_full", GD_DEC1_FULL, head_in, stats)
+        gd_dec0_in = timed("host::concat_gd_dec0", lambda: concat_like(gd_fd1_f, fe1), stats)
         if args.warmup_head_dec0 or args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_gd_dec0_rhb", lambda: run_scaled(GD_DEC0, gd_dec0_in), stats)
-        guide_raw, guide_f = timed("gd_dec0_rhb", lambda: run_scaled(GD_DEC0, gd_dec0_in), stats)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_gd_dec0", GD_DEC0, gd_dec0_in, stats)
+        guide_raw, guide_f = run_scaled_profiled("gd_dec0", GD_DEC0, gd_dec0_in, stats)
         if args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_cf_dec1_rhb", lambda: run_scaled(CF_DEC1, head_in), stats)
-        cf_fd1_raw, cf_fd1_f = timed("cf_dec1_rhb", lambda: run_scaled(CF_DEC1, head_in), stats)
-        cf_dec0_in = concat_like(cf_fd1_f, fe1)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_cf_dec1", CF_DEC1, head_in, stats)
+        cf_fd1_raw, cf_fd1_f = run_scaled_profiled("cf_dec1", CF_DEC1, head_in, stats)
+        cf_dec0_in = timed("host::concat_cf_dec0", lambda: concat_like(cf_fd1_f, fe1), stats)
         cf_dec0_model = CF_DEC0_CONV_ONLY if args.cf_dec0_host_sigmoid else CF_DEC0
         if args.warmup_head_dec0 or args.warmup_head_all:
-            _warm_raw, _warm_f = timed("warmup_cf_dec0_rhb", lambda: run_scaled(cf_dec0_model, cf_dec0_in), stats)
-        confidence_raw, confidence_logits_f = timed("cf_dec0_rhb", lambda: run_scaled(cf_dec0_model, cf_dec0_in), stats)
+            _warm_raw, _warm_f = run_scaled_profiled("warmup_cf_dec0", cf_dec0_model, cf_dec0_in, stats)
+        confidence_raw, confidence_logits_f = run_scaled_profiled("cf_dec0", cf_dec0_model, cf_dec0_in, stats)
         if args.cf_dec0_host_sigmoid:
-            confidence_f = timed("cf_dec0_host_sigmoid", lambda: sigmoid_float(confidence_logits_f), stats)
+            confidence_f = timed("host::cf_dec0_sigmoid", lambda: sigmoid_float(confidence_logits_f), stats)
         else:
             confidence_f = confidence_logits_f
     finally:

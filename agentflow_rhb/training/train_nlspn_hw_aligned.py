@@ -163,6 +163,7 @@ def main() -> None:
             from_scratch=True,
             prop_time=args.prop_time,
             preserve_input=args.preserve_input,
+            allow_approx_fixed_neighbor=True,
         )
     ).to(device)
     if args.data_parallel and torch.cuda.device_count() > 1:

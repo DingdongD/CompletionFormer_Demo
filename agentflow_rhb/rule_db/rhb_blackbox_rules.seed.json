@@ -280,7 +280,7 @@
       "compile_status": "unsupported_or_custom",
       "board_status": "not_supported_in_current_success_rules",
       "decision": "host",
-      "action": "keep NLSPN propagation on Host; if full RHB is required, replace with retrainable fixed-neighbor shift/sum propagation",
+      "action": "for strict/ref NLSPN, keep original deformable propagation on Host/RHBLite CPU; do not replace it with fixed-neighbor shift/sum. A fixed-neighbor variant is a separate approximate model and requires explicit retraining plus separate labeling.",
       "evidence": "NLSPN_ECCV20 propagation calls ModulatedDeformConvFunction.apply with dynamic offset/mask; no accepted CompletionFormer/CSPN board demo uses dynamic deformable sampling",
       "risk": "high"
     },
@@ -533,7 +533,7 @@
       "compile_status": "unsupported_or_untrusted",
       "board_status": "not_in_board_proven_rhb_set",
       "decision": "host_by_default",
-      "action": "keep propagation on Host unless an exact decomposition into supported RHB submodels plus Host glue is proven; approximate fixed-neighbor or simplified propagation requires retraining",
+      "action": "keep propagation on Host unless an exact decomposition into supported RHB submodels plus Host glue is proven. For strict/ref NLSPN, fixed-neighbor or simplified propagation is forbidden; use it only as a separately retrained approximate model.",
       "evidence": "CompletionFormer offloads Conv-heavy decoding while keeping unsupported glue on Host; NLSPN deform propagation remains Host in the accepted workload split",
       "risk": "high if forced into RHB without exact validation"
     },
